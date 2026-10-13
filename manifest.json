@@ -1,0 +1,9 @@
+{
+  "id": "carbonwire",
+  "name": "CarbonWire",
+  "version": "1.0.0",
+  "minAppVersion": "1.11.4",
+  "description": "Test REST APIs with a fast HTTP client. Send requests, inspect JSON responses, and import collections from Postman, Insomnia, Bruno, HTTPie and curl, kept as plain files in your vault.",
+  "author": "CarbonConfig",
+  "isDesktopOnly": true
+}

@@ -1,0 +1,1072 @@
+/* Shared layout for CarbonWire views. Colours and spacing come from Obsidian's theme variables. */
+
+.carbonwire-settings {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	height: 100%;
+	padding: var(--size-4-3);
+}
+
+/* Request tab: request and response panels split by a draggable divider. */
+.carbonwire-request {
+	display: flex;
+	height: 100%;
+	min-height: 0;
+}
+.carbonwire-request.is-vertical {
+	flex-direction: row;
+}
+.carbonwire-request.is-horizontal {
+	flex-direction: column;
+}
+.carbonwire-pane {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	min-width: 0;
+	min-height: 0;
+	padding: var(--size-4-3);
+	overflow: hidden;
+}
+.carbonwire-pane-request {
+	flex: 0 0 calc(var(--cw-ratio, 0.5) * 100%);
+}
+.carbonwire-pane-response {
+	flex: 1 1 0;
+}
+/* A wide, invisible grab area around a 1px line; the line thickens on hover. */
+.carbonwire-divider {
+	position: relative;
+	flex: 0 0 9px;
+	touch-action: none;
+	z-index: 1;
+}
+.is-vertical > .carbonwire-divider {
+	cursor: col-resize;
+	margin: 0 -4px;
+}
+.is-horizontal > .carbonwire-divider {
+	cursor: row-resize;
+	margin: -4px 0;
+}
+.carbonwire-divider::after {
+	content: "";
+	position: absolute;
+	background: var(--background-modifier-border);
+	transition: background-color 0.1s;
+}
+.is-vertical > .carbonwire-divider::after {
+	top: 0;
+	bottom: 0;
+	left: 4px;
+	width: 1px;
+}
+.is-horizontal > .carbonwire-divider::after {
+	left: 0;
+	right: 0;
+	top: 4px;
+	height: 1px;
+}
+.carbonwire-divider:hover::after,
+.carbonwire-divider:active::after {
+	background: var(--interactive-accent);
+}
+.is-vertical > .carbonwire-divider:hover::after,
+.is-vertical > .carbonwire-divider:active::after {
+	left: 3px;
+	width: 3px;
+}
+.is-horizontal > .carbonwire-divider:hover::after,
+.is-horizontal > .carbonwire-divider:active::after {
+	top: 3px;
+	height: 3px;
+}
+
+.carbonwire-settings h2 {
+	margin: 0;
+}
+
+.carbonwire-urlbar,
+.carbonwire-request-bar,
+.carbonwire-response-bar,
+.carbonwire-body-bar,
+.carbonwire-body-tools {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	flex-wrap: wrap;
+}
+
+/* URL: one line in the bar; while focused it floats over the panel and wraps to show all of it. */
+.carbonwire-url-input {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: var(--input-height);
+}
+.carbonwire-url-field {
+	position: absolute;
+	inset: 0 0 auto 0;
+}
+.carbonwire-url-input.is-expanded .carbonwire-url-field {
+	z-index: var(--layer-popover);
+}
+.carbonwire-url-field textarea,
+.carbonwire-url-mirror {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	line-height: calc(var(--input-height) - 2px);
+	padding-top: 0;
+	padding-bottom: 0;
+	white-space: pre;
+	word-break: normal;
+}
+.carbonwire-url-field textarea {
+	display: block;
+	width: 100%;
+	height: var(--input-height);
+	min-height: var(--input-height);
+	resize: none;
+	overflow: hidden;
+}
+.carbonwire-url-input.is-expanded textarea,
+.carbonwire-url-input.is-expanded .carbonwire-url-mirror {
+	line-height: 1.6;
+	padding-top: var(--size-4-1);
+	padding-bottom: var(--size-4-1);
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+.carbonwire-url-input.is-expanded textarea {
+	max-height: 40vh;
+	overflow-y: auto;
+	background-color: var(--background-primary);
+	box-shadow: var(--shadow-s);
+}
+.carbonwire-url-input.is-highlighting textarea {
+	color: transparent;
+	caret-color: var(--caret-color, var(--text-normal));
+}
+.carbonwire-url-mirror {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	overflow: hidden;
+	color: var(--text-normal);
+	pointer-events: none;
+	border-style: solid;
+	border-color: transparent;
+}
+.carbonwire-url-mirror mark {
+	background: none;
+	padding: 0;
+}
+.carbonwire-url-mirror mark.is-defined {
+	color: var(--color-blue);
+}
+.carbonwire-url-mirror mark.is-undefined {
+	color: var(--color-red);
+}
+
+/* One colour per method, shared by the method picker and the sidebar badges. */
+.carbonwire-method {
+	--cw-method: var(--text-muted);
+	color: var(--cw-method);
+	font-weight: var(--font-bold);
+	font-family: var(--font-monospace);
+}
+.carbonwire-method[data-method="GET"] { --cw-method: var(--color-green); }
+.carbonwire-method[data-method="POST"] { --cw-method: var(--color-yellow); }
+.carbonwire-method[data-method="PUT"] { --cw-method: var(--color-blue); }
+.carbonwire-method[data-method="PATCH"] { --cw-method: var(--color-purple); }
+.carbonwire-method[data-method="DELETE"] { --cw-method: var(--color-red); }
+.carbonwire-method[data-method="HEAD"],
+.carbonwire-method[data-method="OPTIONS"] { --cw-method: var(--color-cyan); }
+.carbonwire-method-badge {
+	flex: 0 0 3.4em;
+	font-size: 0.7em;
+	line-height: 1;
+}
+select.carbonwire-method {
+	font-size: var(--font-ui-small);
+}
+/* Each option carries its own method colour; without this they all inherit the selected one. */
+select.carbonwire-method option {
+	background: var(--background-primary);
+	color: var(--cw-method);
+}
+
+.carbonwire-spacer {
+	flex: 1 1 auto;
+}
+
+.carbonwire-tabs {
+	display: flex;
+	gap: var(--size-2-2);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.carbonwire-tabs button {
+	background: none;
+	box-shadow: none;
+	border-radius: 0;
+	color: var(--text-muted);
+	border-bottom: 2px solid transparent;
+}
+.carbonwire-tabs button {
+	align-items: baseline;
+	gap: var(--size-2-2);
+}
+.carbonwire-tabs button.is-active {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+}
+
+.carbonwire-count {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* Scrolling areas clip anything drawn past their edge, such as an input's focus ring, so the
+   content gets room for it; the negative margin keeps everything where it was. */
+.carbonwire-request-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	padding: var(--size-2-2);
+	margin: calc(-1 * var(--size-2-2));
+}
+.carbonwire-request-content h4 {
+	margin: var(--size-4-1) 0 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.carbonwire-kv {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+}
+.carbonwire-kv-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+.carbonwire-kv-row.is-disabled .carbonwire-var-input,
+.carbonwire-kv-row.is-disabled input[type="password"] {
+	opacity: 0.5;
+}
+.carbonwire-kv-toggle-spacer {
+	visibility: hidden;
+}
+.carbonwire-kv-name {
+	flex: 0 0 35%;
+	min-width: 0;
+	font-family: var(--font-monospace);
+}
+.carbonwire-kv-value {
+	flex: 1 1 auto;
+	min-width: 0;
+	font-family: var(--font-monospace);
+}
+.carbonwire-kv-add {
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.carbonwire-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+	max-width: 40rem;
+}
+.carbonwire-field > span {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+.carbonwire-auth,
+.carbonwire-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.carbonwire-code {
+	font-family: var(--font-monospace);
+	font-size: var(--code-size);
+	width: 100%;
+	min-height: 10rem;
+	resize: vertical;
+}
+.carbonwire-pre {
+	margin: 0;
+	padding: var(--size-4-2);
+	background: var(--code-background);
+	border-radius: var(--radius-s);
+	white-space: pre-wrap;
+	word-break: break-all;
+	user-select: text;
+}
+.carbonwire-mono {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	word-break: break-all;
+	user-select: text;
+}
+
+.carbonwire-response {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	flex: 1 1 auto;
+	min-height: 0;
+}
+.carbonwire-response-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	flex: 1 1 auto;
+	overflow: auto;
+	min-height: 0;
+}
+.carbonwire-response-placeholder {
+	margin: auto;
+}
+
+.carbonwire-status {
+	font-weight: var(--font-bold);
+	font-family: var(--font-monospace);
+}
+.carbonwire-status.is-success { color: var(--color-green); }
+.carbonwire-status.is-redirect { color: var(--color-blue); }
+.carbonwire-status.is-client-error { color: var(--color-orange); }
+.carbonwire-status.is-server-error { color: var(--color-red); }
+
+.carbonwire-badge {
+	font-size: var(--font-ui-smaller);
+	padding: 0 var(--size-4-1);
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+}
+
+.carbonwire-muted { color: var(--text-muted); }
+.carbonwire-error,
+.carbonwire-warning {
+	padding: var(--size-4-2);
+	border-radius: var(--radius-s);
+	user-select: text;
+}
+.carbonwire-error { background: var(--background-modifier-error); color: var(--text-on-accent); }
+.carbonwire-warning { background: var(--background-modifier-message); }
+
+.carbonwire-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	user-select: text;
+}
+.carbonwire-table td {
+	padding: var(--size-2-1) var(--size-4-1);
+	border-bottom: 1px solid var(--background-modifier-border);
+	vertical-align: top;
+	word-break: break-all;
+}
+.carbonwire-table td:first-child {
+	width: 30%;
+	color: var(--text-muted);
+}
+
+.carbonwire-timeline {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+}
+.carbonwire-phase {
+	display: grid;
+	grid-template-columns: 9rem 1fr 5rem;
+	align-items: center;
+	gap: var(--size-4-2);
+	font-size: var(--font-ui-small);
+}
+.carbonwire-phase > span:last-child { text-align: right; font-family: var(--font-monospace); }
+.carbonwire-phase.is-total { font-weight: var(--font-bold); }
+.carbonwire-phase-track {
+	height: 0.5rem;
+	background: var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+.carbonwire-phase-bar {
+	height: 100%;
+	min-width: 1px;
+	background: var(--interactive-accent);
+	border-radius: var(--radius-s);
+}
+
+.carbonwire-image {
+	max-width: 100%;
+}
+
+/* Sidebar: Collections pinned to the top, Environments pinned to the bottom. */
+.carbonwire-sidebar-view {
+	padding: 0;
+	overflow: hidden;
+}
+.carbonwire-sidebar {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+.carbonwire-section {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.carbonwire-section.is-collections {
+	flex: 1 1 auto;
+}
+.carbonwire-section.is-environments {
+	flex: 0 0 auto;
+	max-height: 45%;
+	border-top: 1px solid var(--background-modifier-border);
+}
+.carbonwire-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding: var(--size-4-1) var(--size-4-2) var(--size-4-1) var(--size-4-3);
+}
+.carbonwire-section-title {
+	flex: 1 1 auto;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+.carbonwire-section-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: var(--size-2-2) var(--size-4-2) var(--size-4-2);
+}
+.carbonwire-env-collection {
+	margin: 0 var(--size-4-2) var(--size-4-1);
+}
+.carbonwire-env {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+.carbonwire-env .tree-item-inner {
+	flex: 1 1 auto;
+}
+.carbonwire-env-mark {
+	display: flex;
+	color: var(--text-faint);
+}
+.carbonwire-env.is-active .carbonwire-env-mark {
+	color: var(--interactive-accent);
+}
+.carbonwire-env-mark svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+.carbonwire-env-group {
+	margin-top: var(--size-4-1);
+	color: var(--text-muted);
+	font-weight: var(--font-semibold);
+}
+.carbonwire-env-items {
+	padding-inline-start: var(--size-4-3);
+}
+.carbonwire-inline-hint {
+	padding: 0;
+	white-space: nowrap;
+}
+
+.carbonwire-tree .tree-item-children {
+	padding-inline-start: var(--size-4-4);
+	margin-inline-start: var(--size-4-2);
+	border-inline-start: var(--nav-indentation-guide-width, 1px) solid var(--nav-indentation-guide-color, var(--background-modifier-border));
+}
+/* Set on the label itself so Obsidian's hover styles don't change the weight. */
+.carbonwire-collection .tree-item-inner,
+.carbonwire-collection:hover .tree-item-inner {
+	font-weight: var(--font-semibold);
+}
+.carbonwire-empty {
+	color: var(--text-muted);
+	padding: var(--size-4-2);
+	text-align: center;
+}
+.carbonwire-hint {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-4-1) var(--size-4-2);
+}
+
+.carbonwire-import-paste {
+	border-bottom: none;
+}
+.modal .carbonwire-code {
+	min-height: 6rem;
+}
+details.carbonwire-warning summary {
+	cursor: pointer;
+}
+
+/* Sidebar rows: name, then actions pinned to the right end. */
+.carbonwire-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+/* Drag and drop: a line where the item will land, or an outline when it goes inside. */
+.carbonwire-row.is-dragging {
+	opacity: 0.5;
+}
+.carbonwire-row.is-drop-before {
+	box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+.carbonwire-row.is-drop-after {
+	box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+.carbonwire-row.is-drop-inside {
+	background-color: var(--background-modifier-hover);
+	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+}
+.carbonwire-row .tree-item-inner {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.carbonwire-row-actions {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--size-2-1);
+	margin-inline-start: auto;
+}
+.carbonwire-row-actions .clickable-icon {
+	padding: var(--size-2-1);
+	color: var(--text-faint);
+}
+.carbonwire-row-actions .clickable-icon:hover {
+	color: var(--text-normal);
+}
+.carbonwire-row-actions svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}
+/* Row actions appear only while the row is hovered or focused. */
+.carbonwire-row .carbonwire-row-actions {
+	visibility: hidden;
+}
+.carbonwire-row:hover .carbonwire-row-actions,
+.carbonwire-row:focus-within .carbonwire-row-actions {
+	visibility: visible;
+}
+
+/* Filter box with the add and import buttons beside it. */
+.carbonwire-topbar {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: var(--size-4-2) var(--size-4-2) var(--size-4-1);
+}
+.carbonwire-topbar .carbonwire-search {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.carbonwire-search::before {
+	display: none;
+}
+.carbonwire-search input {
+	width: 100%;
+	padding-inline-start: var(--size-4-2);
+}
+
+.carbonwire-editor-host {
+	flex: 1 1 auto;
+	min-height: 10rem;
+	display: flex;
+	flex-direction: column;
+}
+.carbonwire-code-editor {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+}
+.carbonwire-code-editor .cm-editor {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.carbonwire-body {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* Obsidian's view header is replaced by CarbonWire's own slim title bar with an editable name. */
+.workspace-leaf-content[data-type="carbonwire-request"] > .view-header,
+.workspace-leaf-content[data-type="carbonwire-settings"] > .view-header {
+	display: none;
+}
+.carbonwire-request-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+.carbonwire-request-view > .carbonwire-request {
+	flex: 1 1 auto;
+}
+.carbonwire-titlebar {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	flex: 0 0 auto;
+}
+.carbonwire-title-input,
+input.carbonwire-title-input {
+	min-width: 0;
+	flex: 0 1 auto;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+}
+input.carbonwire-title-input {
+	flex: 1 1 auto;
+	background: transparent;
+	border: 1px solid transparent;
+	box-shadow: none;
+	padding: var(--size-2-1) var(--size-4-1);
+	margin-left: calc(-1 * var(--size-4-1));
+	height: auto;
+}
+input.carbonwire-title-input:hover {
+	border-color: var(--background-modifier-border);
+}
+input.carbonwire-title-input:focus {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-form-field);
+}
+
+
+
+/* Find box floating over the top-right corner of a body editor. */
+.carbonwire-code-editor .cm-editor .cm-panels.cm-panels-top {
+	position: absolute;
+	top: var(--size-4-1);
+	right: var(--size-4-3);
+	left: auto;
+	border: none;
+	background: transparent;
+	z-index: 5;
+}
+.carbonwire-find {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding: var(--size-2-2) var(--size-4-1);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+	font-family: var(--font-interface);
+}
+.carbonwire-find input {
+	width: 12rem;
+	height: var(--input-height);
+	font-size: var(--font-ui-small);
+}
+.carbonwire-find-count {
+	min-width: 4.5em;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-align: center;
+	white-space: nowrap;
+}
+.carbonwire-find .clickable-icon {
+	padding: var(--size-2-1);
+}
+
+/* Status, time and size sit on one text baseline, whatever their font. */
+.carbonwire-response-meta {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-4);
+	padding-inline-start: var(--size-4-6);
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+}
+/* Toggle buttons such as Pretty show their on state. */
+.carbonwire-request-bar .clickable-icon.is-active {
+	color: var(--interactive-accent);
+	background-color: var(--background-modifier-hover);
+}
+
+/* Everything clickable in CarbonWire views shows the pointer cursor. */
+.carbonwire-request-view button,
+.carbonwire-request-view select,
+.carbonwire-request-view .clickable-icon,
+.carbonwire-request-view input[type="checkbox"],
+.carbonwire-settings button,
+.carbonwire-settings select,
+.carbonwire-settings .clickable-icon,
+.carbonwire-settings input[type="checkbox"],
+.carbonwire-sidebar button,
+.carbonwire-sidebar select,
+.carbonwire-sidebar .clickable-icon,
+.carbonwire-sidebar .is-clickable,
+.carbonwire-sidebar .search-input-clear-button,
+.carbonwire-find button,
+.carbonwire-tabs button {
+	cursor: pointer;
+}
+
+/* Method picker: smaller than other controls, and more specific than Obsidian's .dropdown size. */
+.carbonwire-urlbar select.dropdown.carbonwire-method {
+	font-size: var(--font-ui-smaller);
+	padding-inline-end: var(--size-4-6);
+}
+.carbonwire-urlbar select.dropdown.carbonwire-method option {
+	font-size: var(--font-ui-small);
+}
+
+/* {{variable}} highlighting: blue when defined in the current scope, red when not. */
+.carbonwire-var-input {
+	position: relative;
+	display: flex;
+	min-width: 0;
+}
+.carbonwire-var-input > input {
+	flex: 1 1 auto;
+	width: 100%;
+	min-width: 0;
+}
+/* While highlighting, the input's own text is hidden and the mirror draws it in colour on top. */
+.carbonwire-var-input.is-highlighting > input {
+	color: transparent;
+	caret-color: var(--caret-color, var(--text-normal));
+}
+.carbonwire-var-mirror {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+	white-space: pre;
+	color: var(--text-normal);
+	pointer-events: none;
+	border-style: solid;
+	border-color: transparent;
+	border-top-width: 0;
+	border-bottom-width: 0;
+}
+.carbonwire-var-mirror mark {
+	background: none;
+	padding: 0;
+}
+.carbonwire-var-mirror mark.is-defined,
+.carbonwire-var.is-defined {
+	color: var(--color-blue);
+}
+.carbonwire-var-mirror mark.is-undefined,
+.carbonwire-var.is-undefined {
+	color: var(--color-red);
+}
+/* Keep CodeMirror's syntax colour from overriding the variable colour inside JSON strings. */
+.carbonwire-var.is-defined *,
+.carbonwire-var.is-undefined * {
+	color: inherit;
+}
+
+/* Environment colours in the sidebar: inactive rows colour their radio circle; the active row
+   gets a tint mixed from the colour, stronger on light themes and softer on dark ones. */
+.carbonwire-env.has-color .carbonwire-env-mark {
+	color: var(--cw-env-color);
+}
+.carbonwire-env {
+	--cw-env-tint: color-mix(in srgb, var(--cw-env-color, var(--interactive-accent)) 30%, transparent);
+}
+.theme-light .carbonwire-env {
+	--cw-env-tint: color-mix(in srgb, var(--cw-env-color, var(--interactive-accent)) 22%, transparent);
+}
+.carbonwire-sidebar .carbonwire-env.is-active,
+.carbonwire-sidebar .carbonwire-env.is-active:hover {
+	background-color: var(--cw-env-tint);
+	color: var(--text-normal);
+}
+.carbonwire-sidebar .carbonwire-env.is-active .carbonwire-env-mark {
+	color: var(--cw-env-color, var(--text-normal));
+}
+
+/* Request tab: a pill in the environment's own colour; text colour is picked for contrast in code. */
+.carbonwire-env-badge {
+	display: inline-flex;
+	align-items: center;
+	height: 1.6em;
+	padding: 0 var(--size-4-2);
+	border-radius: 999px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+}
+.carbonwire-env-badge.has-color {
+	background-color: var(--cw-env-color);
+	color: var(--cw-env-text, #1f1f1f);
+}
+.carbonwire-env-badge:hover,
+.carbonwire-env-badge:focus-visible {
+	filter: brightness(1.08);
+	outline: none;
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+.carbonwire-env-badge.is-none {
+	background: none;
+	border: 1px dashed var(--background-modifier-border);
+	color: var(--text-muted);
+	font-weight: var(--font-normal);
+	cursor: default;
+}
+
+.carbonwire-swatches {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-3);
+}
+/* Specific enough to beat Obsidian's button background and hover styles. */
+.carbonwire-swatches .carbonwire-swatch,
+.carbonwire-swatches .carbonwire-swatch:hover {
+	position: relative;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border-radius: 50%;
+	border: 1px solid var(--background-modifier-border);
+	background-color: var(--cw-swatch);
+	box-shadow: none;
+	cursor: pointer;
+}
+.carbonwire-swatches .carbonwire-swatch:hover {
+	transform: scale(1.1);
+}
+.carbonwire-swatches .carbonwire-swatch.is-selected {
+	outline: 2px solid var(--text-normal);
+	outline-offset: 2px;
+}
+/* The custom swatch is a label around a hidden native colour input. */
+.carbonwire-swatch.is-custom {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
+}
+.carbonwire-swatch.is-custom svg {
+	width: 12px;
+	height: 12px;
+}
+.carbonwire-swatch.is-custom input[type="color"] {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+/* JSON tree: rows are absolutely placed inside a full-height spacer, so only visible rows render. */
+.carbonwire-json-tree {
+	flex: 1 1 auto;
+	min-height: 10rem;
+	overflow: auto;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	user-select: text;
+}
+.carbonwire-json-rows {
+	position: relative;
+	min-width: 100%;
+	width: max-content;
+}
+.carbonwire-json-row {
+	position: absolute;
+	left: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-1);
+	padding-right: var(--size-4-2);
+	white-space: pre;
+	border-radius: var(--radius-s);
+}
+.carbonwire-json-row:hover {
+	background-color: var(--background-modifier-hover);
+}
+.carbonwire-json-row.is-expandable {
+	cursor: pointer;
+}
+/* Obsidian's triangle points down, so closed rows turn it to point right. */
+.carbonwire-json-toggle {
+	display: inline-flex;
+	flex: 0 0 auto;
+	width: 12px;
+	color: var(--text-faint);
+	transform: rotate(-90deg);
+	transition: transform 100ms ease;
+}
+.carbonwire-json-toggle svg {
+	width: 10px;
+	height: 10px;
+}
+.carbonwire-json-toggle.is-open {
+	transform: none;
+}
+.carbonwire-json-key {
+	color: var(--text-normal);
+}
+.carbonwire-json-key.is-index,
+.carbonwire-json-colon,
+.carbonwire-json-summary {
+	color: var(--text-faint);
+}
+.carbonwire-json-value.is-string {
+	color: var(--color-green);
+}
+.carbonwire-json-value.is-number {
+	color: var(--color-orange);
+}
+.carbonwire-json-value.is-boolean {
+	color: var(--color-purple);
+}
+.carbonwire-json-value.is-null {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* HTML preview: a white page like a browser's, whatever the theme. */
+.carbonwire-html-preview {
+	flex: 1 1 auto;
+	min-height: 10rem;
+	width: 100%;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: #ffffff;
+}
+
+/* Collections and History share the top section; the tabs replace its title. */
+.carbonwire-section-tabs {
+	display: flex;
+	flex: 1 1 auto;
+	gap: var(--size-4-3);
+}
+.carbonwire-section-tabs button {
+	background: none;
+	box-shadow: none;
+	padding: 0;
+	height: auto;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+.carbonwire-section-tabs button:hover {
+	color: var(--text-muted);
+}
+.carbonwire-section-tabs button.is-active {
+	color: var(--text-normal);
+}
+
+.carbonwire-history-day {
+	padding: var(--size-4-2) var(--size-4-3) var(--size-2-1);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+.carbonwire-history-status {
+	flex: 0 0 auto;
+	font-size: var(--font-ui-smaller);
+}
+.carbonwire-history-time {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+/* In-flight request: a bar along the top of the response, filling while downloading a known size. */
+.carbonwire-progress {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 2px;
+	overflow: hidden;
+	background-color: var(--background-modifier-border);
+}
+.carbonwire-progress-bar {
+	height: 100%;
+	background-color: var(--interactive-accent);
+	transition: width 100ms linear;
+}
+.carbonwire-progress.is-indeterminate .carbonwire-progress-bar {
+	width: 30%;
+	animation: carbonwire-progress 1.2s ease-in-out infinite;
+}
+@keyframes carbonwire-progress {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(340%);
+	}
+}
+.carbonwire-sending {
+	text-align: center;
+}
+.carbonwire-sending-time {
+	margin-top: var(--size-2-2);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+/* PDF responses: pages stacked at the panel's width, drawn as they scroll into view. */
+.carbonwire-pdf {
+	flex: 1 1 auto;
+	min-height: 10rem;
+	overflow: auto;
+}
+.carbonwire-pdf-pages {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2);
+}
+.carbonwire-pdf-page {
+	display: block;
+	width: 100%;
+	background: #ffffff;
+	box-shadow: var(--shadow-s);
+}
+
+.carbonwire-empty-response {
+	text-align: center;
+}
+.carbonwire-shortcut {
+	margin-top: var(--size-4-2);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
