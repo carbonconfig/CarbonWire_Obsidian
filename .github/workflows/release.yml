@@ -1,13 +1,16 @@
 name: Release
 
 # Pushing a tag such as 1.0.0 builds the plugin and creates a draft GitHub release with the
-# files Obsidian downloads. Review the draft, add notes, then publish it.
+# files Obsidian downloads, with signed build provenance. Review the draft, add notes, then publish it.
 on:
   push:
     tags: ["*"]
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
   release:
@@ -29,6 +32,12 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}

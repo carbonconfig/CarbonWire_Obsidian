@@ -106,6 +106,7 @@ CarbonWire needs Obsidian 1.11.4 or later, on desktop.
 
 - CarbonWire sends requests only to the URLs you enter, and only when you send them. For OAuth 2.0 it also calls the token URL you set, including when you copy a request as curl.
 - There's no telemetry and no account.
+- A request body can be a file anywhere on your computer, such as `-F file=@/path/to/report.pdf` in an imported curl command. CarbonWire reads that file only when you send the request, and never writes outside your vault.
 - Secret environment values are kept in Obsidian's secret storage, never in your vault.
 - History, including response bodies up to 1 MB each, stays on this device. Requests are stored as written, so secrets aren't copied into history. Clear it from the History tab or turn it off in settings.
 - HTML previews run no scripts and load nothing from the network.
