@@ -10,7 +10,7 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 
 - **Fast.** The sidebar indexes 5,000 requests in under 5 ms and filters them as you type. Big JSON responses are formatted in the background, so Obsidian stays responsive.
 - **Your files, your vault.** Collections are plain YAML files in the OpenCollection format that Bruno uses. They sync, diff and version like the rest of your notes, and Bruno's YAML collections open as they are.
-- **Bring everything with you.** Import from Postman, Insomnia, Bruno, HTTPie, Hoppscotch, curl, HAR and `.http` files, environments included.
+- **Bring everything with you.** Import from Postman, Insomnia, Bruno, HTTPie, Hoppscotch, curl, HAR and `.http` files, environments included, or a whole Postman account in one go.
 - **Everything you reach for.** OAuth 2.0 sign-in in the browser, AWS, NTLM and eight more auth types, cookies, proxies, client certificates, HTTP/2, code snippets and a console that shows each request as it was sent.
 - **Private by design.** No account, no cloud, no telemetry. Requests go only where you send them, and secrets stay in Obsidian's secret storage.
 - **Open source.** All the code is [on GitHub](https://github.com/carbonconfig/CarbonWire_Obsidian) under the MIT license, so you can see exactly what it does with your requests.
@@ -32,10 +32,12 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 - Paste a curl command into the URL bar and the whole request fills in. Copy any request back out as curl.
 - The request as code: cURL, raw HTTP, JavaScript `fetch`, Python `requests` or Go
 - Header presets: save a set of headers once and add it to any request
+- Comment out lines of a JSON body with `Ctrl+/` (`Cmd+/`). Commented lines aren't sent.
+- A request opens on the first of Body, Params, Auth and Headers that has something in it, and each tab comes back as you left it: its tabs, response view and JSONPath filter
 - Start a request in a new tab without saving it, then save it to a collection when you want to keep it
 
 **Responses**
-- Status, time and size at a glance, with live progress while connecting, waiting and downloading
+- Status, time and size at a glance, with live progress while connecting, waiting and downloading, and a button to cancel a slow request
 - Pretty-printed, searchable JSON with syntax colouring, and a JSON tree view for large payloads
 - Filter JSON with JSONPath, such as `$.items[?@.active].id`
 - HTML preview, images and PDFs right in the panel
@@ -83,7 +85,7 @@ Median times on an Intel Core i5-1135G7 laptop with Node 24. Run `npm run bench`
 
 | Source | What comes across |
 |---|---|
-| Postman | Collections (v2.0 and v2.1) and environments |
+| Postman | Collections (v1, v2.0 and v2.1), environments, globals, and a whole data export (the .zip, or its folder) |
 | Insomnia | v4 JSON and v5 YAML exports, with environments |
 | Bruno | `.bru` collections and OpenCollection YAML folders |
 | HTTPie | Desktop and web exports |
@@ -103,6 +105,8 @@ Auth that OpenCollection files have no place for (Hawk, Akamai EdgeGrid, JWT Bea
 | Send the request | `Ctrl/Cmd + Enter`, or `Enter` in the URL bar |
 | Save an unsaved request | `Ctrl/Cmd + S` |
 | Find in the response or body | `Ctrl/Cmd + F` |
+| Comment out JSON body lines | `Ctrl/Cmd + /` |
+| Cancel a request in flight | `Escape` in the response pane |
 
 Commands in the palette: **Open collections**, **New request**, **Import collection, environment or cURL**, **Send request**, **Edit globals**, **Open console**, **Manage cookies** and **Clear OAuth 2.0 tokens**. Assign your own hotkeys to any of them.
 
@@ -149,6 +153,7 @@ CarbonWire is also a VS Code extension, with the same features. It works in Curs
 
 ## Coming next
 
+- [ ] JSON validation in the body editor, with mistakes marked where they are
 - [ ] Run a request once for each row of a CSV file or pasted list, with assertions to check every response
 - [ ] GraphQL
 - [ ] gRPC
@@ -156,7 +161,6 @@ CarbonWire is also a VS Code extension, with the same features. It works in Curs
 - [ ] OpenAPI import
 - [ ] Pre-request and test scripts, with a collection runner
 - [ ] Code snippets for more languages
-- [ ] Move a whole Postman account in one go
 - [ ] Mobile support
 
 ## Development
