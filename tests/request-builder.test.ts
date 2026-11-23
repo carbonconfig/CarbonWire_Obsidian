@@ -65,6 +65,8 @@ describe("buildRequest", () => {
 	it("sets a default content type for raw bodies unless one is given", () => {
 		const json = buildRequest({ http: { url: "x", body: { type: "json", data: '{"id":{{id}}}' } } }, [], scope);
 		expect(json.body).toEqual({ kind: "text", text: '{"id":42}', contentType: "application/json" });
+		const commented = buildRequest({ http: { url: "x", body: { type: "json", data: '{\n  "id": {{id}},\n  // "user": "{{user}}"\n}' } } }, [], scope);
+		expect(commented.body).toEqual({ kind: "text", text: '{\n  "id": 42\n}', contentType: "application/json" });
 		expect(json.headers).toContainEqual(["Content-Type", "application/json"]);
 
 		const custom = buildRequest(

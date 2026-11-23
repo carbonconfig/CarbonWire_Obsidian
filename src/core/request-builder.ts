@@ -3,6 +3,7 @@ import { mergeHeaders, resolveAuth, resolveSettings, type EffectiveSettings } fr
 import type { Auth, DefaultsChain, Header, HttpRequest, HttpRequestBody, HttpRequestDetails, HttpRequestParam } from "./model";
 import type { FlatAuth } from "./storage/sidecar";
 import { interpolate, interpolateDeep, type Scope } from "./variables";
+import { stripJsonComments } from "./json-comments";
 
 /** Auth the sender applies; the sidecar types (JWT, Hawk, EdgeGrid, ASAP) are flat objects. */
 export type PendingAuth = Exclude<Auth, "inherit"> | FlatAuth;
@@ -150,6 +151,7 @@ function resolveBody(body: HttpRequestDetails["body"], scope: Scope): ResolvedBo
 
 	switch (selected.type) {
 		case "json":
+			return { kind: "text", text: sub(stripJsonComments(selected.data)), contentType: RAW_CONTENT_TYPES.json };
 		case "text":
 		case "xml":
 		case "sparql":

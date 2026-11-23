@@ -1296,3 +1296,10 @@ input.carbonwire-title-input:focus {
 	align-items: center;
 	gap: var(--size-4-1);
 }
+
+/* JSON body lines commented out with Ctrl+/ (Cmd+/), which aren't sent. */
+.carbonwire-comment,
+.carbonwire-comment * {
+	color: var(--code-comment);
+	font-style: italic;
+}

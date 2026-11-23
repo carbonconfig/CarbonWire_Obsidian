@@ -164,6 +164,27 @@ const variableHighlighter = ViewPlugin.fromClass(
 	{ decorations: (plugin) => plugin.decorations },
 );
 
+const commentMatcher = new MatchDecorator({ regexp: /^\s*\/\/.*$/g, decoration: Decoration.mark({ class: "carbonwire-comment" }) });
+
+/* JSON has no comments, so // is added for Mod-/ to toggle; they're removed before sending. Commented lines are greyed. */
+const jsonComments: Extension = [
+	EditorState.languageData.of(() => [{ commentTokens: { line: "//" } }]),
+	ViewPlugin.fromClass(
+		class {
+			decorations: DecorationSet;
+
+			constructor(view: EditorView) {
+				this.decorations = commentMatcher.createDeco(view);
+			}
+
+			update(update: ViewUpdate) {
+				this.decorations = commentMatcher.updateDeco(update, this.decorations);
+			}
+		},
+		{ decorations: (plugin) => plugin.decorations },
+	),
+];
+
 /** Mod-Enter is left to the request view, which sends the request. */
 const editingKeymap = defaultKeymap.filter((binding) => binding.key !== "Mod-Enter");
 
@@ -189,7 +210,7 @@ export interface CodeEditorHandle {
 export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions): CodeEditorHandle {
 	const languageSlot = new Compartment();
 	const wrapSlot = new Compartment();
-	const languageFor = (language: CodeLanguage, size: number): Extension => (language === "json" && size <= HIGHLIGHT_LIMIT ? json() : []);
+	const languageFor = (language: CodeLanguage, size: number): Extension => (language !== "json" ? [] : options.readOnly ? (size <= HIGHLIGHT_LIMIT ? json() : []) : [size <= HIGHLIGHT_LIMIT ? json() : [], jsonComments]);
 
 	const extensions: Extension[] = [
 		lineNumbers(),
