@@ -436,6 +436,22 @@
 		}}
 		onblur={(e) => void rename(e.currentTarget)}
 	/>
+	{#if environment}
+		{@const env = environment}
+		<span
+			class="carbonwire-env-badge"
+			class:has-color={env.color !== undefined}
+			style:--cw-env-color={env.color}
+			style:--cw-env-text={readableTextColor(env.color)}
+			role="button"
+			tabindex="0"
+			title="Active environment. Click to edit it."
+			onclick={() => controller.openEnvironment(env.path)}
+			onkeydown={(e) => (e.key === "Enter" || e.key === " ") && controller.openEnvironment(env.path)}
+		>{env.name}</span>
+	{:else}
+		<span class="carbonwire-env-badge is-none">No environment</span>
+	{/if}
 </div>
 	<div class="carbonwire-urlbar">
 		<select
@@ -462,7 +478,7 @@
 		{#if sending}
 			<button onclick={() => abort?.abort()}>Cancel</button>
 		{:else}
-			<button class="mod-cta" onclick={() => void send()}>Send</button>
+			<button class="mod-cta carbonwire-send" class:has-color={environment?.color !== undefined} style:--cw-env-color={environment?.color} style:--cw-env-text={readableTextColor(environment?.color)} onclick={() => void send()}>Send</button>
 		{/if}
 		{#if draft}
 			<button aria-label="Save to a collection" onclick={() => void save()}>Save</button>
@@ -480,22 +496,6 @@
 			{#if examples.length > 0}<button class:is-active={tab === "examples"} onclick={() => (tab = "examples")}>Examples <span class="carbonwire-count">{examples.length}</span></button>{/if}
 		</div>
 		<span class="carbonwire-spacer"></span>
-		{#if environment}
-			{@const env = environment}
-			<span
-				class="carbonwire-env-badge"
-				class:has-color={env.color !== undefined}
-				style:--cw-env-color={env.color}
-				style:--cw-env-text={readableTextColor(env.color)}
-				role="button"
-				tabindex="0"
-				title="Active environment. Click to edit it."
-				onclick={() => controller.openEnvironment(env.path)}
-				onkeydown={(e) => (e.key === "Enter" || e.key === " ") && controller.openEnvironment(env.path)}
-			>{env.name}</span>
-		{:else}
-			<span class="carbonwire-env-badge is-none">No environment</span>
-		{/if}
 		<button class="clickable-icon" aria-label="Copy as cURL" onclick={() => void copyCurl()} use:icon={"code-xml"}></button>
 		<button
 			class="clickable-icon"

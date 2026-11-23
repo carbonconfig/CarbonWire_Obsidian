@@ -825,9 +825,21 @@ input.carbonwire-title-input:focus {
 	cursor: pointer;
 	user-select: none;
 }
+.carbonwire-titlebar .carbonwire-env-badge {
+	flex: 0 0 auto;
+}
 .carbonwire-env-badge.has-color {
 	background-color: var(--cw-env-color);
 	color: var(--cw-env-text, #1f1f1f);
+}
+/* Send takes the active environment's colour, so it's clear where a request is going. */
+button.mod-cta.carbonwire-send.has-color {
+	background-color: var(--cw-env-color);
+	color: var(--cw-env-text, #1f1f1f);
+}
+button.mod-cta.carbonwire-send.has-color:hover {
+	background-color: var(--cw-env-color);
+	filter: brightness(1.08);
 }
 .carbonwire-env-badge:hover,
 .carbonwire-env-badge:focus-visible {
