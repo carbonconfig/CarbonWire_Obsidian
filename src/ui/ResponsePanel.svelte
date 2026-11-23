@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Platform } from "obsidian";
-	import { tick } from "svelte";
+	import { tick, untrack } from "svelte";
+	import type { ResponseView } from "./request-tab";
 	import { findHeader } from "../core/headers";
 	import type { SendResult } from "../core/sender";
 	import type { SendProgress } from "../core/transport/types";
@@ -24,6 +25,8 @@
 		example,
 		onSaveBody,
 		onSaveExample,
+		initialView,
+		onviewchange,
 	}: {
 		result: SendResult | undefined;
 		error: string | undefined;
@@ -37,6 +40,8 @@
 		example?: string;
 		onSaveBody?: () => void;
 		onSaveExample?: () => void;
+		initialView?: ResponseView;
+		onviewchange?: (view: ResponseView) => void;
 	} = $props();
 
 	// Larger bodies are formatted in a worker; past PRETTY_LIMIT they're shown as received.
@@ -45,9 +50,10 @@
 	// The tree parses on the main thread, so it's limited to what parses quickly.
 	const TREE_LIMIT = 10_000_000;
 
-	let tab = $state<"body" | "headers" | "cookies" | "timeline">("body");
-	let view = $state<"text" | "tree" | "preview">("text");
-	let pretty = $state(true);
+	const start = untrack(() => initialView);
+	let tab = $state<ResponseView["tab"]>(start?.tab ?? "body");
+	let view = $state<ResponseView["view"]>(start?.view ?? "text");
+	let pretty = $state(start?.pretty ?? true);
 	let viewer = $state<ReturnType<typeof CodeEditor>>();
 	let formatted = $state.raw<{ source: string; pretty: string | undefined }>();
 
@@ -94,8 +100,9 @@
 	});
 
 	/* A JSONPath filter shows only the values it selects, pretty-printed. */
-	let filter = $state("");
-	let filterInput = $state("");
+	let filter = $state(start?.filter ?? "");
+	let filterInput = $state(start?.filter ?? "");
+	$effect(() => onviewchange?.({ tab, view, pretty, filter }));
 	const filtered = $derived.by((): { text: string } | { error: string } | undefined => {
 		if (!filter || !looksJson) return undefined;
 		if (text.length > TREE_LIMIT) return { error: `Filtering is limited to ${formatBytes(TREE_LIMIT)} of JSON.` };

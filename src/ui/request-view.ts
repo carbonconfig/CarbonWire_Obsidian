@@ -12,6 +12,7 @@ import { CARBONWIRE_ICON } from "./icon";
 import { promptNewRequest, promptText, requestLocations } from "./prompt";
 import type { RequestController } from "./request-controller";
 import RequestEditor from "./RequestEditor.svelte";
+import type { TabView } from "./request-tab";
 
 export const VIEW_TYPE_REQUEST = "carbonwire-request";
 
@@ -54,6 +55,7 @@ export function refreshTabTitle(leaf: WorkspaceLeaf): void {
 export class RequestView extends ItemView {
 	private path?: string;
 	private draft?: DraftState;
+	private tabView?: TabView;
 	private editor?: EditorApi;
 
 	constructor(leaf: WorkspaceLeaf, private readonly plugin: CarbonWirePlugin) {
@@ -103,17 +105,19 @@ export class RequestView extends ItemView {
 
 	override getState(): Record<string, unknown> {
 		const draft = this.draft && { ...this.draft, request: this.editor?.snapshot() ?? this.draft.request };
-		return { ...super.getState(), ...(this.path ? { file: this.path } : draft ? { draft } : {}) };
+		return { ...super.getState(), ...(this.path ? { file: this.path } : draft ? { draft } : {}), ...(this.tabView ? { view: this.tabView } : {}) };
 	}
 
 	override async setState(state: unknown, result: ViewStateResult): Promise<void> {
-		const { file, draft } = (state ?? {}) as { file?: unknown; draft?: DraftState };
+		const { file, draft, view } = (state ?? {}) as { file?: unknown; draft?: DraftState; view?: TabView };
 		if (typeof file === "string" && file !== this.path) {
 			this.path = file;
+			this.tabView = view;
 			this.draft = undefined;
 			await this.render();
 		} else if (draft && !this.path && !this.draft) {
 			this.draft = draft;
+			this.tabView = view;
 			await this.render();
 		}
 		await super.setState(state, result);
@@ -210,6 +214,10 @@ export class RequestView extends ItemView {
 			},
 			saveBody: async (body, contentType, name) => saveDownload(`${safeFileName(name) || "response"}${extensionFor(contentType)}`, body, contentType),
 			askName: (title, value) => promptText(this.app, title, "", value, "Save"),
+			viewChanged: (view) => {
+				this.tabView = view;
+				this.app.workspace.requestSaveLayout();
+			},
 		};
 		this.editor = mount(RequestEditor, {
 			target: this.contentEl,
@@ -223,6 +231,7 @@ export class RequestView extends ItemView {
 				initialLayout: plugin.requestLayout(),
 				initialWrap: plugin.settings.wrapResponseLines,
 				initialSnippetLanguage: plugin.settings.snippetLanguage,
+				initialView: this.tabView,
 				controller,
 			},
 		}) as EditorApi;

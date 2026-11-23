@@ -22,6 +22,7 @@
 	import { createAutosave } from "./autosave";
 	import { formatTime } from "./format";
 	import { paramsFromUrl, urlFromParams } from "../core/url-params";
+	import { initialTab, type RequestTab, type ResponseView, type TabView } from "./request-tab";
 
 	let {
 		initial,
@@ -33,6 +34,7 @@
 		initialResult,
 		restoredAt: initialRestoredAt,
 		initialSnippetLanguage = "curl",
+		initialView,
 		controller,
 	}: {
 		initial: HttpRequest;
@@ -49,6 +51,8 @@
 		initialName: string;
 		/** The language the Code tab shows first. */
 		initialSnippetLanguage?: string;
+		/** The tabs and response view the tab showed last. */
+		initialView?: TabView;
 		controller: RequestController;
 	} = $props();
 
@@ -150,7 +154,10 @@
 		name = renamed ?? name;
 		input.value = name;
 	}
-	let tab = $state<"params" | "headers" | "body" | "auth" | "settings" | "code" | "examples">("params");
+	const lastTab = untrack(() => initialView?.tab);
+	let tab = $state<RequestTab>(lastTab && (lastTab !== "examples" || loaded.examples?.length) ? lastTab : initialTab(loaded.http));
+	let responseView = $state.raw<ResponseView | undefined>(untrack(() => initialView?.response));
+	$effect(() => controller.viewChanged?.({ tab, response: responseView }));
 	let result = $state.raw<SendResult | undefined>(untrack(() => initialResult));
 	let error = $state<string | undefined>();
 	let sending = $state(false);
@@ -585,6 +592,8 @@
 <div class="carbonwire-pane carbonwire-pane-response" bind:this={responsePane}>
 	<ResponsePanel
 		bind:this={responsePanel}
+		initialView={responseView}
+		onviewchange={(next) => (responseView = next)}
 		result={exampleResult ?? result}
 		error={exampleResult ? undefined : error}
 		example={exampleResult ? (examples[shownExample!]?.name ?? "Example") : undefined}

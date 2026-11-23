@@ -1,3 +1,4 @@
+import type { TabView } from "./request-tab";
 import type { HeaderPreset } from "../core/header-presets";
 import type { HttpRequest, HttpRequestHeader } from "../core/model";
 import type { SendResult } from "../core/sender";
@@ -32,4 +33,6 @@ export interface RequestController {
 	saveBody(body: Uint8Array, contentType: string, name: string): Promise<void>;
 	/** Asks for a name; resolves to undefined if cancelled. */
 	askName(title: string, value: string): Promise<string | undefined>;
+	/** The tabs shown changed; kept with the tab. */
+	viewChanged?(view: TabView): void;
 }
