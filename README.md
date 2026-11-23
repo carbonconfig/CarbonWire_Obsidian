@@ -47,6 +47,7 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 **Collections and environments**
 - Collections and folders share variables, headers, auth and settings with every request inside them, and can have docs, written in Markdown
 - Globals: variables for every collection, whichever environment is active
+- Hover an item in the sidebar to see where it's saved. Its menu copies the full path or shows it in your system's file explorer.
 - One list of environments, one active at a time, each with its own colour. Names like dev, test, staging and prod get matching colours automatically.
 - Drag to reorder or move requests, folders, collections and environments. Sort by name, creation or last update.
 

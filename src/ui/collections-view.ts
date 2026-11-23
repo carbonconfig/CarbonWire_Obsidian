@@ -1,4 +1,4 @@
-import { ItemView, Menu, Notice, type WorkspaceLeaf } from "obsidian";
+import { FileSystemAdapter, ItemView, Menu, Notice, type WorkspaceLeaf } from "obsidian";
 import { mount, unmount } from "svelte";
 import { joinPath, stem } from "../core/storage/paths";
 import type { SortOrder } from "../core/storage/order";
@@ -267,6 +267,27 @@ export class CollectionsView extends ItemView {
 				break;
 			}
 		}
+		this.addPathItems(menu, target);
 		menu.showAtMouseEvent(event);
+	}
+
+	/** Where an item is on disk: copy its path, or show it in the system's file manager. */
+	private addPathItems(menu: Menu, target: MenuTarget): void {
+		const { adapter } = this.app.vault;
+		if (!(adapter instanceof FileSystemAdapter)) return;
+		const path = target.kind === "collection" ? target.collection.root : target.kind === "folder" ? target.folder.path : target.kind === "request" ? target.request.path : target.path;
+		const full = adapter.getFullPath(path);
+		menu.addSeparator();
+		menu.addItem((item) => item.setTitle("Copy path").setIcon("clipboard-copy").onClick(() => void navigator.clipboard.writeText(full).then(() => new Notice("Copied the path."))));
+		menu.addItem((item) =>
+			item
+				.setTitle("Show in system explorer")
+				.setIcon("folder-open")
+				.onClick(() => {
+					// Electron's shell, which Obsidian's desktop app provides to plugins.
+					const electron = (window as unknown as { require(id: "electron"): { shell: { showItemInFolder(path: string): void } } }).require("electron");
+					electron.shell.showItemInFolder(full);
+				}),
+		);
 	}
 }
