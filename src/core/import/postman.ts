@@ -35,7 +35,8 @@ export function importPostmanCollection(data: unknown): ImportResult {
 export function importPostmanEnvironment(data: unknown): ImportResult {
 	if (!isPostmanEnvironment(data)) throw new ImportError("Not a Postman environment.");
 	const env: ImportedEnvironment = {
-		name: str(data.name) || (data._postman_variable_scope === "globals" ? "Globals" : "Environment"),
+		// Globals go to CarbonWire's globals file, globals.yml in the environments folder.
+		name: data._postman_variable_scope === "globals" ? "globals" : str(data.name) || "Environment",
 		variables: objects(data.values).map((v) => ({
 			name: str(v.key),
 			value: str(v.value),

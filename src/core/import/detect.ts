@@ -9,6 +9,7 @@ import { importInsomniaV4, importInsomniaV5, isInsomniaV4, isInsomniaV5 } from "
 import { ImportError, type ImportResult } from "./model";
 import { importOpenCollectionEnvironment, isOpenCollectionEnvironment } from "./opencollection";
 import { importPostmanCollection, importPostmanEnvironment, isPostmanCollection, isPostmanEnvironment } from "./postman";
+import { importPostmanDump, importPostmanV1Collection, isPostmanDump, isPostmanV1Collection } from "./postman-export";
 import { isObject } from "./util";
 
 /** Detects the format of a pasted or chosen file and converts it. */
@@ -28,6 +29,7 @@ export function importText(text: string, fileName = ""): ImportResult {
 		if (isHar(data)) return importHar(data);
 		if (isPostmanCollection(data)) return importPostmanCollection(data);
 		if (isPostmanEnvironment(data)) return importPostmanEnvironment(data);
+		if (isPostmanDump(data)) return importPostmanDump(data);
 		if (isInsomniaV4(data)) return importInsomniaV4(data);
 		if (isInsomniaV5(data)) return importInsomniaV5(data);
 		if (isHttpie(data)) return importHttpie(data);
@@ -35,6 +37,7 @@ export function importText(text: string, fileName = ""): ImportResult {
 		if (isOpenCollectionEnvironment(data)) return importOpenCollectionEnvironment(data, fileName);
 		if (isHoppscotchCollection(data)) return importHoppscotchCollection(parseStructured(convertHoppscotchVariables(trimmed)));
 		if (isHoppscotchEnvironment(data)) return importHoppscotchEnvironment(parseStructured(convertHoppscotchVariables(trimmed)));
+		if (isPostmanV1Collection(data)) return importPostmanV1Collection(data);
 		if (isObject(data) && "opencollection" in data) {
 			throw new ImportError("This is an OpenCollection file. Copy the collection folder into your vault instead, or use “Import folder”.");
 		}

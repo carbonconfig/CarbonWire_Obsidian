@@ -2,11 +2,13 @@ import { Modal, Notice, Setting, type App } from "obsidian";
 import { importBrunoFolder } from "../core/import/bruno";
 import { importText } from "../core/import/detect";
 import { countItems, type ImportedEnvironment, type ImportResult } from "../core/import/model";
+import { importPostmanExport } from "../core/import/postman-export";
+import { unzip } from "../core/import/unzip";
 import { writeImport, type EnvironmentResolution, type ImportTarget } from "../core/import/writer";
 import { basename, joinPath, stem } from "../core/storage/paths";
 import type CarbonWirePlugin from "../main";
 
-const FILE_TYPES = ".json,.yaml,.yml,.har,.http,.rest,.bru,.txt";
+const FILE_TYPES = ".json,.yaml,.yml,.har,.http,.rest,.bru,.txt,.zip";
 const FOLDER_FILES = /\.(bru|json|ya?ml|md)$/i;
 const SKIPPED_DIRS = /(^|\/)(node_modules|\.git)(\/|$)/;
 const NEW = "new";
@@ -24,6 +26,11 @@ export interface ImportModalOptions {
 }
 
 type ConflictChoice = "rename" | "merge-imported" | "merge-existing";
+
+function importZip(data: Uint8Array): ImportResult {
+	const decoder = new TextDecoder();
+	return importPostmanExport(unzip(data, (name) => name.toLowerCase().endsWith(".json")).map((f) => ({ path: f.name, text: decoder.decode(f.data) })));
+}
 
 /** Choose a file, a folder or pasted text, preview what will be imported, then write it. */
 export class ImportModal extends Modal {
@@ -50,14 +57,14 @@ export class ImportModal extends Modal {
 			.setDesc(
 				this.options.environments
 					? "Postman, Insomnia, Hoppscotch, HTTPie, Bruno (.bru or .yml) or http-client.env.json environment files."
-					: "Postman, Insomnia, Hoppscotch or HTTPie exports, HAR, .http and .bru files, and environment files.",
+					: "Postman, Insomnia, Hoppscotch or HTTPie exports, a whole Postman data export (.zip), HAR, .http and .bru files, and environment files.",
 			)
 			.addButton((b) => b.setButtonText("Choose file…").setCta().onClick(() => this.pickFile()));
 
 		if (!this.options.environments) {
 			new Setting(contentEl)
 				.setName("Folder")
-				.setDesc("A Bruno collection folder (.bru files), or an OpenCollection folder, which is copied as-is.")
+				.setDesc("A Bruno collection folder (.bru files), an unzipped Postman data export, or an OpenCollection folder, which is copied as-is.")
 				.addButton((b) => b.setButtonText("Choose folder…").onClick(() => this.pickFolder()));
 		}
 
@@ -75,7 +82,9 @@ export class ImportModal extends Modal {
 		const input = createEl("input", { type: "file", attr: { accept: FILE_TYPES } });
 		input.addEventListener("change", () => {
 			const file = input.files?.[0];
-			if (file) void file.text().then((text) => this.parse(() => importText(text, file.name)));
+			if (!file) return;
+			if (file.name.toLowerCase().endsWith(".zip")) void file.arrayBuffer().then((data) => this.parse(() => importZip(new Uint8Array(data))));
+			else void file.text().then((text) => this.parse(() => importText(text, file.name)));
 		});
 		input.click();
 	}
@@ -95,6 +104,8 @@ export class ImportModal extends Modal {
 		}
 		const openCollection = files.find((f) => basename(f.path) === "opencollection.yml");
 		if (openCollection) await this.copyOpenCollection(files, openCollection.path);
+		// Bruno folders have .bru files; an unzipped Postman export has only JSON.
+		else if (!files.some((f) => f.path.endsWith(".bru")) && files.some((f) => f.path.toLowerCase().endsWith(".json"))) this.parse(() => importPostmanExport(files));
 		else this.parse(() => importBrunoFolder(files));
 	}
 
@@ -143,7 +154,7 @@ export class ImportModal extends Modal {
 		if (envOnly) {
 			contentEl.createEl("p", { cls: "carbonwire-muted", text: "Environments are shared by every collection." });
 		} else {
-			const targets = new Map<string, string>([[NEW, `New collection in ${this.plugin.collectionsFolder() || "the vault root"}`]]);
+			const targets = new Map<string, string>([[NEW, `${result.collections.length > 1 ? "New collections" : "New collection"} in ${this.plugin.collectionsFolder() || "the vault root"}`]]);
 			for (const c of collections) targets.set(c.root, `Add to ${c.name}`);
 			// Whole collections default to a new collection; single requests to the current one.
 			target = this.options.collectionRoot ?? (singleRequest ? (this.plugin.focusedCollection() ?? collections[0]?.root ?? NEW) : NEW);
