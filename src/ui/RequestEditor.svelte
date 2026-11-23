@@ -115,7 +115,7 @@
 		error = failure && `The last send, ${formatTime(time)}, failed: ${failure}`;
 	}
 
-	let layout = $state(untrack(() => initialLayout));
+	let layout = $state.raw(untrack(() => initialLayout));
 	let container: HTMLDivElement;
 	let name = $state(untrack(() => initialName));
 	let draft = $state(untrack(() => initialDraft));
