@@ -15,6 +15,52 @@ export interface TransportRequest {
 	maxBodyBytes: number;
 	signal?: AbortSignal;
 	onProgress?: (progress: SendProgress) => void;
+	/** HTTP/1.1 unless asked; "auto" lets TLS (ALPN) pick HTTP/2 when the server offers it. */
+	httpVersion?: "http1" | "http2" | "auto";
+	/** TLS versions not to offer, such as "TLSv1.2", and the cipher suites to offer. */
+	disabledTlsVersions?: readonly string[];
+	ciphers?: readonly string[];
+	/** Keep the method and body on a 301, 302 or 303. */
+	keepMethod?: boolean;
+	/** Default headers (user-agent, accept, accept-encoding) to leave out, lower case. */
+	omitHeaders?: readonly string[];
+	/** Cookies sent with each hop, and those each hop sets, including redirects. */
+	cookies?: CookieHooks;
+	/**
+	 * Requests with the same key go over one connection no other request uses, as NTLM needs.
+	 * Release it with `Transport.release` when done.
+	 */
+	connection?: object;
+}
+
+export interface CookieHooks {
+	header(url: URL): string | undefined;
+	store(url: URL, setCookies: readonly string[]): void;
+}
+
+/** What the request looked like on the wire, on its last hop. */
+export interface SentOnWire {
+	method: string;
+	url: string;
+	headers: Header[];
+}
+
+export interface CertificateInfo {
+	subject: string;
+	issuer: string;
+	validFrom: string;
+	validTo: string;
+	fingerprint256: string;
+	subjectAltName?: string;
+}
+
+export interface TlsDetails {
+	protocol?: string;
+	cipher?: string;
+	/** The server's certificate first, then its issuers. */
+	certificates: CertificateInfo[];
+	authorized: boolean;
+	authorizationError?: string;
 }
 
 /** Where a request is up to, for showing progress. */
@@ -57,6 +103,12 @@ export interface TransportResponse {
 	timings: Timings;
 	redirects: Redirect[];
 	remoteAddress?: string;
+	remotePort?: number;
+	tls?: TlsDetails;
+	/** The last hop as sent, with cookies and default headers added. */
+	sent?: SentOnWire;
+	/** Set when the request went through a proxy. */
+	proxy?: string;
 }
 
 export type TransportErrorCode = "timeout" | "aborted" | "too-many-redirects" | "invalid-url" | "network";
@@ -75,5 +127,7 @@ export class TransportError extends Error {
 
 export interface Transport {
 	send(request: TransportRequest): Promise<TransportResponse>;
+	/** Closes the connection kept for a `connection` key. */
+	release?(connection: object): void;
 	dispose(): void;
 }

@@ -1,4 +1,5 @@
-import type { HttpRequest } from "../core/model";
+import type { HeaderPreset } from "../core/header-presets";
+import type { HttpRequest, HttpRequestHeader } from "../core/model";
 import type { SendResult } from "../core/sender";
 import type { SendProgress } from "../core/transport/types";
 import type { RequestLayout } from "../settings";
@@ -19,4 +20,16 @@ export interface RequestController {
 	/** Copies the request, fully resolved, as a cURL command. */
 	copyCurl(request: HttpRequest): Promise<void>;
 	notify(message: string): void;
+	/** The request as code, resolved as it would be sent. */
+	snippet(request: HttpRequest, language: string): Promise<string>;
+	setSnippetLanguage(language: string): void;
+	headerPresets(): Promise<HeaderPreset[]>;
+	/** Asks for a name, then keeps the headers as a preset. */
+	saveHeaderPreset(headers: HttpRequestHeader[]): Promise<void>;
+	/** Asks which preset to remove. */
+	removeHeaderPreset(): Promise<void>;
+	/** Writes a response body to a file the user picks. */
+	saveBody(body: Uint8Array, contentType: string, name: string): Promise<void>;
+	/** Asks for a name; resolves to undefined if cancelled. */
+	askName(title: string, value: string): Promise<string | undefined>;
 }

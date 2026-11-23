@@ -14,6 +14,7 @@
 		getSecret,
 		setSecret,
 		onSave,
+		globals = false,
 	}: {
 		initial: Environment;
 		/** Renames the environment file; resolves to the name used, or undefined if it failed. */
@@ -21,6 +22,8 @@
 		getSecret: (name: string) => string | null;
 		setSecret: (name: string, value: string) => void;
 		onSave: (env: Environment) => Promise<void>;
+		/** The globals file: the outermost variable scope rather than an environment. */
+		globals?: boolean;
 	} = $props();
 
 	let env = $state(structuredClone(untrack(() => initial)));
@@ -90,20 +93,26 @@
 				onblur={(e) => void renameEnvironment(e.currentTarget)}
 			/>
 		{:else}
-			<span class="carbonwire-title-input">{env.name}</span>
+			<span class="carbonwire-title-input">{globals ? "Globals" : env.name}</span>
 		{/if}
-		<span class="carbonwire-muted">environment</span>
-		<span class="carbonwire-spacer"></span>
-		<ColorSwatches
-			value={env.color}
-			onchange={(color) => {
-				env.color = color;
-				autosave.schedule();
-			}}
-		/>
+		{#if !globals}
+			<span class="carbonwire-muted">environment</span>
+			<span class="carbonwire-spacer"></span>
+			<ColorSwatches
+				value={env.color}
+				onchange={(color) => {
+					env.color = color;
+					autosave.schedule();
+				}}
+			/>
+		{/if}
 	</div>
 	<p class="carbonwire-muted">
-		When active, these variables apply to every collection and override collection variables. Folder and request variables override them.
+		{#if globals}
+			Globals apply to every request in every collection, whichever environment is active. Collection, environment, folder and request variables override them.
+		{:else}
+			When active, these variables apply to every collection and override collection variables. Folder and request variables override them.
+		{/if}
 		Secret values are stored in Obsidian's secret storage on this device and never written to the vault.
 	</p>
 	<div class="carbonwire-kv">

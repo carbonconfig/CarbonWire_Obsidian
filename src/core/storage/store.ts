@@ -1,5 +1,6 @@
 import type { DefaultsChain, Environment, Folder, HttpRequest, OpenCollection, RequestDefaults } from "../model";
 import { basename, dirname, joinPath, safeFileName, stem } from "./paths";
+import { extrasOf, mergeExtras, moveEntries, setExtras, SIDECAR_FILE, sidecarKey, splitExtras, type Sidecar } from "./sidecar";
 import { COLLECTION_FILE, FOLDER_FILE } from "./tree";
 
 export interface WriteOptions {
@@ -34,13 +35,28 @@ let yaml: Promise<typeof import("yaml")> | undefined;
 /** The YAML library is set up on first use rather than when the plugin loads. */
 const loadYaml = () => (yaml ??= import("yaml"));
 
+/** A place in a collection: its root folder and a path inside it. */
+export interface CollectionPlace {
+	root: string;
+	path: string;
+}
+
 export class CollectionStore {
 	private readonly cache = new Map<string, unknown>();
 
-	constructor(private readonly files: VaultFiles) {}
+	/** `rootOf` finds the collection holding a path, for the sidecar; without it, sidecars are ignored. */
+	constructor(
+		private readonly files: VaultFiles,
+		private readonly rootOf?: (path: string) => string | undefined,
+	) {}
 
 	invalidate(path: string): void {
 		this.cache.delete(path);
+	}
+
+	/** Forgets a file, or every file inside a folder, e.g. after the folder is deleted. */
+	invalidateUnder(path: string): void {
+		for (const key of [...this.cache.keys()]) if (key === path || key.startsWith(`${path}/`)) this.cache.delete(key);
 	}
 
 	async loadRequest(path: string): Promise<HttpRequest> {
@@ -48,7 +64,7 @@ export class CollectionStore {
 	}
 
 	async saveRequest(path: string, request: HttpRequest): Promise<void> {
-		await this.writeYaml(path, request);
+		await this.writeDoc(path, request);
 	}
 
 	exists(path: string): boolean {
@@ -72,11 +88,15 @@ export class CollectionStore {
 
 	/** Any collection file (opencollection.yml, folder.yml, environment) as an editable copy. */
 	async loadDocument<T extends object>(path: string): Promise<T> {
-		return structuredClone((await this.readYaml<T>(path)) ?? ({} as T));
+		const doc = structuredClone((await this.readYaml<T>(path)) ?? ({} as T));
+		const root = this.collectionRoot(path);
+		if (root === undefined) return doc;
+		const sidecar = await this.loadSidecar(root);
+		return mergeExtras(doc as never, extrasOf(sidecar, sidecarKey(root, path)));
 	}
 
 	async saveDocument(path: string, value: object): Promise<void> {
-		await this.writeYaml(path, value);
+		await this.writeDoc(path, value);
 	}
 
 	/**
@@ -86,16 +106,16 @@ export class CollectionStore {
 	async saveEdited(path: string, value: object): Promise<void> {
 		const seq = (await this.readYaml<Sequenced>(path))?.info?.seq;
 		const info = { ...(value as Sequenced).info };
-		if (info.seq === seq) return this.writeYaml(path, value);
+		if (info.seq === seq) return this.writeDoc(path, value);
 		if (seq === undefined) delete info.seq;
 		else info.seq = seq;
-		await this.writeYaml(path, { ...value, info });
+		await this.writeDoc(path, { ...value, info });
 	}
 
 	/** Sets the sidebar position of a request file, or of a folder through its folder.yml; returns the file written. */
 	async setSeq(path: string, kind: "request" | "folder", seq: number): Promise<string> {
 		const file = kind === "folder" ? await this.ensureFolderConfig(path) : path;
-		const doc = await this.loadDocument<Sequenced>(file);
+		const doc = (await this.readYaml<Sequenced>(file)) ?? {};
 		await this.writeYaml(file, { ...doc, info: { ...doc.info, seq } }, { orderOnly: true });
 		return file;
 	}
@@ -111,14 +131,16 @@ export class CollectionStore {
 
 	/** Defaults from the collection root down to the request's own folder, outermost first. */
 	async loadContext(collectionRoot: string, requestPath: string): Promise<RequestContext> {
-		const collection = (await this.readYaml<OpenCollection>(joinPath(collectionRoot, COLLECTION_FILE))) ?? {};
+		const sidecar = this.rootOf ? await this.loadSidecar(collectionRoot) : undefined;
+		const raw = (await this.readYaml<OpenCollection>(joinPath(collectionRoot, COLLECTION_FILE))) ?? {};
+		const collection = mergeExtras(raw, extrasOf(sidecar, ""));
 		const chain: (Folder["request"] | undefined)[] = [collection.request ?? {}];
 
 		const dirs: string[] = [];
 		for (let dir = dirname(requestPath); dir !== collectionRoot && dir !== ""; dir = dirname(dir)) dirs.unshift(dir);
 		for (const dir of dirs) {
 			const folder = await this.readYaml<Folder>(joinPath(dir, FOLDER_FILE));
-			chain.push(folder ? (folder.request ?? {}) : undefined);
+			chain.push(folder ? (mergeExtras(folder, extrasOf(sidecar, sidecarKey(collectionRoot, dir))).request ?? {}) : undefined);
 		}
 		return { collectionRoot, collection, chain };
 	}
@@ -128,7 +150,7 @@ export class CollectionStore {
 		const collection: OpenCollection = { opencollection: "1.0.0", info: { name } };
 		if (defaults && Object.keys(defaults).length > 0) collection.request = defaults;
 		if (docs) collection.docs = docs;
-		await this.writeYaml(joinPath(root, COLLECTION_FILE), collection);
+		await this.writeDoc(joinPath(root, COLLECTION_FILE), collection);
 		return root;
 	}
 
@@ -137,7 +159,7 @@ export class CollectionStore {
 		const request: HttpRequest = from
 			? { ...from, info: { ...from.info, name, type: "http", ...(seq !== undefined ? { seq } : {}) } }
 			: { info: { name, type: "http" }, http: { method: "GET", url: "", auth: "inherit" } };
-		await this.writeYaml(path, request);
+		await this.writeDoc(path, request);
 		return path;
 	}
 
@@ -149,7 +171,7 @@ export class CollectionStore {
 		const folderDir = this.uniqueDir(dir, name);
 		const folder: Folder = { info: { name, type: "folder", ...(seq !== undefined ? { seq } : {}) }, request: defaults };
 		if (docs) folder.docs = docs;
-		await this.writeYaml(joinPath(folderDir, FOLDER_FILE), folder);
+		await this.writeDoc(joinPath(folderDir, FOLDER_FILE), folder);
 		return folderDir;
 	}
 
@@ -173,6 +195,92 @@ export class CollectionStore {
 	async loadEnvironment(path: string): Promise<Environment> {
 		const env = await this.loadDocument<Environment>(path);
 		return { ...env, name: stem(path) };
+	}
+
+	/**
+	 * Follows a rename, move or duplicate in the sidecars: the entries for `from` (a file or a
+	 * folder) move to `to`, across collections too. Safe to call twice for one move.
+	 */
+	async followSidecar(from: CollectionPlace, to: CollectionPlace, keepOld = false): Promise<void> {
+		const fromKey = sidecarKey(from.root, from.path);
+		const toKey = sidecarKey(to.root, to.path);
+		if (fromKey === "" || toKey === "" || (from.root === to.root && fromKey === toKey)) return;
+		const source = await this.loadSidecar(from.root);
+		if (!source?.items) return;
+		const target = from.root === to.root ? source : ((await this.loadSidecar(to.root)) ?? { version: 1 });
+		if (!moveEntries(source, fromKey, target, toKey, keepOld)) return;
+		await this.saveSidecar(to.root, target);
+		if (target !== source && !keepOld) await this.saveSidecar(from.root, source);
+	}
+
+	/** Drops the entries for a deleted file or folder. */
+	async forgetSidecar(place: CollectionPlace): Promise<void> {
+		const key = sidecarKey(place.root, place.path);
+		const sidecar = key === "" ? undefined : await this.loadSidecar(place.root);
+		if (!sidecar?.items) return;
+		let changed = false;
+		for (const k of Object.keys(sidecar.items)) {
+			if (k === key || k.startsWith(`${key}/`)) {
+				delete sidecar.items[k];
+				changed = true;
+			}
+		}
+		if (Object.keys(sidecar.items).length === 0) delete sidecar.items;
+		if (changed) await this.saveSidecar(place.root, sidecar);
+	}
+
+	private collectionRoot(path: string): string | undefined {
+		if (!this.rootOf) return undefined;
+		if (basename(path) === COLLECTION_FILE) return dirname(path);
+		return this.rootOf(path);
+	}
+
+	private async loadSidecar(root: string): Promise<Sidecar | undefined> {
+		const path = joinPath(root, SIDECAR_FILE);
+		if (this.cache.has(path)) return this.cache.get(path) as Sidecar | undefined;
+		// Read without checking it exists first: an Obsidian vault doesn't list files in dot-folders.
+		let text: string | undefined;
+		try {
+			text = await this.files.read(path);
+		} catch {
+			text = undefined;
+		}
+		let sidecar: Sidecar | undefined;
+		if (text !== undefined) {
+			try {
+				const parsed: unknown = JSON.parse(text);
+				if (parsed && typeof parsed === "object") sidecar = parsed as Sidecar;
+			} catch {
+				// A sidecar that doesn't parse is ignored rather than overwritten.
+				return undefined;
+			}
+		}
+		this.cache.set(path, sidecar);
+		return sidecar;
+	}
+
+	private async saveSidecar(root: string, sidecar: Sidecar): Promise<void> {
+		const path = joinPath(root, SIDECAR_FILE);
+		const empty = !sidecar.collection && !sidecar.items && Object.keys(sidecar).every((k) => k === "version");
+		// Nothing to keep and no file on disk: don't create one.
+		if (empty && this.cache.get(path) === undefined) return;
+		const value = { ...sidecar, version: sidecar.version || 1 };
+		await this.files.write(path, `${JSON.stringify(value, null, 2)}\n`);
+		this.cache.set(path, structuredClone(value));
+	}
+
+	/** Writes a collection, folder or request file, with what its YAML can't hold going to the sidecar. */
+	private async writeDoc(path: string, value: unknown, options?: WriteOptions): Promise<void> {
+		const root = this.collectionRoot(path);
+		if (root === undefined) return this.writeYaml(path, value, options);
+		const sidecar = await this.loadSidecar(root);
+		const key = sidecarKey(root, path);
+		const { doc, extras } = splitExtras(value as never, extrasOf(sidecar, key));
+		const next = structuredClone(sidecar) ?? { version: 1 };
+		if (sidecar !== undefined || extras !== undefined) {
+			if (setExtras(next, key, extras)) await this.saveSidecar(root, next);
+		}
+		await this.writeYaml(path, doc, options);
 	}
 
 	private uniqueDir(parent: string, name: string): string {

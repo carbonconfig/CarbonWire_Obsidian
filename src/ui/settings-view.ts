@@ -12,6 +12,7 @@ import EnvironmentEditor from "./EnvironmentEditor.svelte";
 export function settingsTitle(path: string | undefined): string {
 	if (!path) return "Settings";
 	const name = basename(path);
+	if (name === "globals.yml") return "Globals";
 	if (name === COLLECTION_FILE || name === FOLDER_FILE) return `${basename(path.slice(0, -name.length - 1)) || "Collection"} settings`;
 	return `${stem(path)} environment`;
 }
@@ -88,14 +89,18 @@ export class SettingsView extends ItemView {
 		}
 
 		const env = await store.loadEnvironment(path);
+		const globals = path === this.plugin.globalsPath();
 		this.editor = mount(EnvironmentEditor, {
 			target: this.contentEl,
 			props: {
 				initial: env,
-				onRename: async (name: string) => {
-					const target = await this.plugin.actions.renameEnvironment(path, name);
-					return target ? stem(target) : undefined;
-				},
+				globals,
+				onRename: globals
+					? undefined
+					: async (name: string) => {
+							const target = await this.plugin.actions.renameEnvironment(path, name);
+							return target ? stem(target) : undefined;
+						},
 				getSecret: (variable: string) => this.plugin.secretFor(path, variable),
 				setSecret: (variable: string, value: string) => this.plugin.setSecretFor(path, variable, value),
 				onSave: save,

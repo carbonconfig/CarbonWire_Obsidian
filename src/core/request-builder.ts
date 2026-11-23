@@ -1,7 +1,11 @@
 import { hasHeader, setHeader } from "./headers";
 import { mergeHeaders, resolveAuth, resolveSettings, type EffectiveSettings } from "./inheritance";
 import type { Auth, DefaultsChain, Header, HttpRequest, HttpRequestBody, HttpRequestDetails, HttpRequestParam } from "./model";
+import type { FlatAuth } from "./storage/sidecar";
 import { interpolate, interpolateDeep, type Scope } from "./variables";
+
+/** Auth the sender applies; the sidecar types (JWT, Hawk, EdgeGrid, ASAP) are flat objects. */
+export type PendingAuth = Exclude<Auth, "inherit"> | FlatAuth;
 
 export type ResolvedBody =
 	| { kind: "text"; text: string; contentType: string }
@@ -18,8 +22,11 @@ export interface ResolvedRequest {
 	headers: Header[];
 	body?: ResolvedBody;
 	settings: EffectiveSettings;
-	/** Auth types that need a network round trip (digest, OAuth 2.0) are applied by the sender. */
-	pendingAuth?: Exclude<Auth, "inherit">;
+	/**
+	 * Auth applied by the sender: types that need a network round trip (Digest, OAuth 2.0, NTLM), and
+	 * those that sign the final URL and body (OAuth 1.0, AWS, Hawk, EdgeGrid, WSSE, JWT, ASAP).
+	 */
+	pendingAuth?: PendingAuth;
 	warnings: string[];
 }
 
@@ -45,7 +52,7 @@ export function buildRequest(request: HttpRequest, chain: DefaultsChain, scope: 
 	}
 
 	let pendingAuth: ResolvedRequest["pendingAuth"];
-	const auth = resolveAuth(http.auth, chain);
+	const auth = resolveAuth(http.auth, chain) as PendingAuth | undefined;
 	switch (auth?.type) {
 		case undefined:
 			break;
@@ -65,10 +72,18 @@ export function buildRequest(request: HttpRequest, chain: DefaultsChain, scope: 
 		}
 		case "digest":
 		case "oauth2":
+		case "ntlm":
+		case "oauth1":
+		case "awsv4":
+		case "wsse":
+		case "jwt":
+		case "hawk":
+		case "edgegrid":
+		case "asap":
 			pendingAuth = interpolateDeep(auth, scope);
 			break;
 		default:
-			warnings.push(`Auth type "${auth?.type}" is not supported yet; the request is sent without it.`);
+			warnings.push(`Auth type "${(auth as { type?: string }).type}" is not supported; the request is sent without it.`);
 	}
 
 	return {

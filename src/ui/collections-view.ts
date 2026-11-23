@@ -76,6 +76,7 @@ export class CollectionsView extends ItemView {
 				onImportMenu: (event: MouseEvent) => this.showImportMenu(event),
 				onSelectEnvironment: (name: string) => void plugin.setActiveEnvironment(name),
 				onEditEnvironment: (path: string) => void plugin.openFile(path),
+				onEditGlobals: () => void plugin.editGlobals(),
 				onSortMenu: (event: MouseEvent) => this.showSortMenu(event),
 				onMove: (path: string, dir: string, anchor: string | undefined, position: "before" | "after" | "end") =>
 					void plugin.actions.moveTreeItem(path, dir, anchor, position),
@@ -212,6 +213,7 @@ export class CollectionsView extends ItemView {
 				menu.addSeparator();
 				menu.addItem((item) => item.setTitle("Import into collection…").setIcon("import").onClick(() => void plugin.openImport({ collectionRoot: root })));
 				menu.addItem((item) => item.setTitle("Collection settings").setIcon("settings").onClick(() => void plugin.openFile(joinPath(root, COLLECTION_FILE))));
+				menu.addItem((item) => item.setTitle("Export…").setIcon("download").onClick(() => void plugin.exportCollection(root)));
 				if (environments.length > 0) {
 					const title = environments.length === 1 ? "Add its environment to the shared list" : `Add its ${environments.length} environments to the shared list`;
 					menu.addItem((item) => item.setTitle(title).setIcon("globe").onClick(() => void actions.copyCollectionEnvironments(environments)));
@@ -259,6 +261,7 @@ export class CollectionsView extends ItemView {
 				menu.addItem((item) => item.setTitle("Edit").setIcon("pencil-line").onClick(() => void plugin.openFile(path)));
 				menu.addItem((item) => item.setTitle("Rename and colour…").setIcon("palette").onClick(() => void actions.renameEnvironment(path)));
 				menu.addItem((item) => item.setTitle("Duplicate").setIcon("copy").onClick(() => void actions.duplicateEnvironment(path)));
+				menu.addItem((item) => item.setTitle("Export…").setIcon("download").onClick(() => void plugin.exportEnvironment(path)));
 				menu.addSeparator();
 				menu.addItem((item) => item.setTitle("Delete").setIcon("trash").setWarning(true).onClick(() => void actions.deleteEnvironment(path)));
 				break;

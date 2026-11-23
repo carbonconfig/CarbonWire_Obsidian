@@ -2,12 +2,14 @@ import { ItemView, Notice, Scope, type ViewStateResult, type WorkspaceLeaf } fro
 import { mount, unmount } from "svelte";
 import type { HttpRequest } from "../core/model";
 import type { SendResult } from "../core/sender";
-import { stem } from "../core/storage/paths";
+import { safeFileName, stem } from "../core/storage/paths";
+import type { SnippetLanguage } from "../core/export/snippet";
+import { extensionFor, saveDownload } from "./download";
 import type CarbonWirePlugin from "../main";
 import type { EnvironmentEntry } from "../main";
 import type { RequestLayout } from "../settings";
 import { CARBONWIRE_ICON } from "./icon";
-import { promptNewRequest, requestLocations } from "./prompt";
+import { promptNewRequest, promptText, requestLocations } from "./prompt";
 import type { RequestController } from "./request-controller";
 import RequestEditor from "./RequestEditor.svelte";
 
@@ -183,6 +185,31 @@ export class RequestView extends ItemView {
 			},
 			copyCurl: (next) => plugin.copyCurl(this.path, next),
 			notify: (message) => new Notice(message),
+			snippet: (next, language) => plugin.snippet(this.path, next, language as SnippetLanguage),
+			setSnippetLanguage: (language) => {
+				plugin.settings.snippetLanguage = language;
+				void plugin.saveSettings();
+			},
+			headerPresets: () => plugin.headerPresets(),
+			saveHeaderPreset: async (headers) => {
+				const name = await promptText(this.app, "Save the headers as a preset", "Preset name; a preset with this name is replaced", "", "Save");
+				if (!name) return;
+				const { upsertPreset } = await import("../core/header-presets");
+				const kept = headers.filter((h) => h.name && !h.disabled).map((h) => ({ name: h.name, value: h.value }));
+				await plugin.setHeaderPresets(upsertPreset(await plugin.headerPresets(), { name, headers: kept }));
+			},
+			removeHeaderPreset: async () => {
+				const presets = await plugin.headerPresets();
+				const name = await promptText(this.app, "Remove a header preset", presets.map((p) => p.name).join(", "), "", "Remove");
+				if (!name) return;
+				if (!presets.some((p) => p.name === name)) {
+					new Notice(`There's no preset named "${name}".`);
+					return;
+				}
+				await plugin.setHeaderPresets(presets.filter((p) => p.name !== name));
+			},
+			saveBody: async (body, contentType, name) => saveDownload(`${safeFileName(name) || "response"}${extensionFor(contentType)}`, body, contentType),
+			askName: (title, value) => promptText(this.app, title, "", value, "Save"),
 		};
 		this.editor = mount(RequestEditor, {
 			target: this.contentEl,
@@ -195,6 +222,7 @@ export class RequestView extends ItemView {
 				initialEnvironment: plugin.activeEnvironmentEntry(),
 				initialLayout: plugin.requestLayout(),
 				initialWrap: plugin.settings.wrapResponseLines,
+				initialSnippetLanguage: plugin.settings.snippetLanguage,
 				controller,
 			},
 		}) as EditorApi;

@@ -20,6 +20,7 @@
 		onAdd,
 		onNewCollection,
 		onNewEnvironment,
+		onEditGlobals,
 		onAddMenu,
 		onImportMenu,
 		onSelectEnvironment,
@@ -42,6 +43,7 @@
 		onAdd: (event: MouseEvent, target: MenuTarget) => void;
 		onNewCollection: () => void;
 		onNewEnvironment: () => void;
+		onEditGlobals?: () => void;
 		onAddMenu: (event: MouseEvent) => void;
 		onImportMenu: (event: MouseEvent) => void;
 		onSelectEnvironment: (name: string) => void;
@@ -161,6 +163,7 @@
 				onEdit={onEditEnvironment}
 				onMenu={(e, path) => onMenu(e, { kind: "environment", path })}
 				onMove={onMoveEnvironment}
+				{onEditGlobals}
 			/>
 		</div>
 	</section>

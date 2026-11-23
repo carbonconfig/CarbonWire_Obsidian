@@ -1,9 +1,12 @@
+import { dynamicValue } from "./dynamic";
 import type { Environment, SecretVariable, Variable } from "./model";
 
 export type Scope = ReadonlyMap<string, string>;
 export type SecretLookup = (name: string) => string | null;
 
 export interface ScopeLayers {
+	/** Globals, resolved with {@link resolveEnvironment}; the outermost scope. */
+	globals?: readonly Variable[];
 	collection?: readonly Variable[];
 	/** The active environment, already resolved with {@link resolveEnvironment}. */
 	environment?: readonly Variable[];
@@ -56,9 +59,10 @@ export function resolveEnvironment(env: Environment | undefined, secrets?: Secre
 	return out;
 }
 
-/** Later layers override earlier ones: collection < environment < folders < request < runtime. */
+/** Later layers override earlier ones: globals < collection < environment < folders < request < runtime. */
 export function buildScope(layers: ScopeLayers): Scope {
 	const scope = new Map<string, string>();
+	addAll(scope, layers.globals);
 	addAll(scope, layers.collection);
 	addAll(scope, layers.environment);
 	for (const folder of layers.folders ?? []) addAll(scope, folder);
@@ -67,19 +71,7 @@ export function buildScope(layers: ScopeLayers): Scope {
 	return scope;
 }
 
-const dynamic: Record<string, () => string> = {
-	$guid: () => crypto.randomUUID(),
-	$uuid: () => crypto.randomUUID(),
-	$randomUUID: () => crypto.randomUUID(),
-	$timestamp: () => Math.floor(Date.now() / 1000).toString(),
-	$isoTimestamp: () => new Date().toISOString(),
-	$randomInt: () => Math.floor(Math.random() * 1001).toString(),
-};
-
-/** True for names that resolve without being defined, such as {{$guid}}. */
-export function isDynamicVariable(name: string): boolean {
-	return Object.hasOwn(dynamic, name);
-}
+export { isDynamicVariable } from "./dynamic";
 
 /** A piece of text that is either literal or a {{variable}} reference. */
 export type TemplateSegment = { text: string; variable?: string };
@@ -104,7 +96,7 @@ export function interpolate(input: string, scope: Scope): string {
 	for (let depth = 0; depth < MAX_DEPTH; depth++) {
 		let changed = false;
 		const next = current.replace(PLACEHOLDER, (match, name: string) => {
-			const value = scope.get(name) ?? dynamic[name]?.();
+			const value = scope.get(name) ?? dynamicValue(name);
 			if (value === undefined) return match;
 			changed = true;
 			return value;

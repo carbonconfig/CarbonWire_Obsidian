@@ -148,7 +148,6 @@ function convertAuth(raw: unknown, warnings: Warnings, canInherit: boolean): Aut
 		case "digest":
 			return { type: "digest", username: s("username"), password: s("password") };
 		case "aws-signature":
-			warnings.add("AWS Signature auth is kept but not applied yet.");
 			return compact({ type: "awsv4", accessKeyId: s("accessKey"), secretAccessKey: s("secretKey"), region: s("region"), service: s("serviceName"), sessionToken: s("serviceToken") || undefined });
 		case "oauth-2": {
 			const info = isObject(raw.grantTypeInfo) ? raw.grantTypeInfo : raw;
@@ -162,10 +161,8 @@ function convertAuth(raw: unknown, warnings: Warnings, canInherit: boolean): Aut
 				case "PASSWORD":
 					return compact({ type: "oauth2", flow: "resource_owner_password_credentials", accessTokenUrl: g("authEndpoint") || g("tokenEndpoint"), credentials, resourceOwner: { username: g("username"), password: g("password") }, scope, tokenConfig });
 				case "IMPLICIT":
-					warnings.add("OAuth 2.0 implicit auth is kept but not applied yet.");
 					return compact({ type: "oauth2", flow: "implicit", authorizationUrl: g("authEndpoint"), credentials: { clientId: g("clientID") }, scope, tokenConfig });
 				default:
-					warnings.add("OAuth 2.0 authorization code auth is kept but not applied yet.");
 					return compact({ type: "oauth2", flow: "authorization_code", authorizationUrl: g("authEndpoint") || g("authURL"), accessTokenUrl: g("tokenEndpoint") || g("accessTokenURL"), credentials, scope, tokenConfig });
 			}
 		}

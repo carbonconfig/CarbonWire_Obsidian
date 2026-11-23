@@ -58,7 +58,8 @@ describe("buildRequest", () => {
 
 	it("defers digest auth to the sender and warns on unsupported types", () => {
 		expect(buildRequest({ http: { url: "x", auth: { type: "digest", username: "u" } } }, [], scope).pendingAuth?.type).toBe("digest");
-		expect(buildRequest({ http: { url: "x", auth: { type: "ntlm" } } }, [], scope).warnings).toHaveLength(1);
+		expect(buildRequest({ http: { url: "x", auth: { type: "ntlm" } } }, [], scope).pendingAuth?.type).toBe("ntlm");
+		expect(buildRequest({ http: { url: "x", auth: { type: "kerberos" } as never } }, [], scope).warnings).toHaveLength(1);
 	});
 
 	it("sets a default content type for raw bodies unless one is given", () => {

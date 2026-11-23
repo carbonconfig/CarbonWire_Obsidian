@@ -2,6 +2,9 @@ import { normalizePath, type Vault } from "obsidian";
 import { dirname } from "../core/storage/paths";
 import type { VaultFiles, WriteOptions } from "../core/storage/store";
 
+/** True for paths in dot-folders, such as .carbonwire/, which the vault doesn't list. */
+export const isHidden = (path: string) => path.split("/").some((part) => part.startsWith("."));
+
 export class ObsidianVaultFiles implements VaultFiles {
 	constructor(private readonly vault: Vault) {}
 
@@ -10,6 +13,7 @@ export class ObsidianVaultFiles implements VaultFiles {
 	}
 
 	async read(path: string): Promise<string> {
+		if (isHidden(path)) return this.vault.adapter.read(normalizePath(path));
 		return this.vault.cachedRead(this.file(path));
 	}
 
@@ -19,6 +23,12 @@ export class ObsidianVaultFiles implements VaultFiles {
 
 	async write(path: string, data: string, options: WriteOptions = {}): Promise<void> {
 		const normalized = normalizePath(path);
+		if (isHidden(normalized)) {
+			const dir = dirname(normalized);
+			if (dir && !(await this.vault.adapter.exists(dir))) await this.vault.adapter.mkdir(dir);
+			await this.vault.adapter.write(normalized, data);
+			return;
+		}
 		const existing = this.vault.getFileByPath(normalized);
 		if (existing) {
 			const { ctime, mtime } = existing.stat;

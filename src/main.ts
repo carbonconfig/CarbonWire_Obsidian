@@ -14,6 +14,11 @@ import { CollectionIndex } from "./obsidian/collection-index";
 import { HistoryStore, type HistoryEntry } from "./obsidian/history";
 import { ItemActions } from "./obsidian/item-actions";
 import { ObsidianVaultFiles } from "./obsidian/vault-files";
+import { Network } from "./obsidian/network";
+import type { HeaderPreset } from "./core/header-presets";
+import type { SnippetLanguage } from "./core/export/snippet";
+import type { ConsoleEntry } from "./ui/types";
+import { ConsoleView, CookiesView, VIEW_TYPE_CONSOLE, VIEW_TYPE_COOKIES } from "./ui/tool-views";
 import { CarbonWireSettingTab, DEFAULT_SETTINGS, type CarbonWireSettings, type RequestLayout } from "./settings";
 import "./styles.css";
 import { CollectionsView, VIEW_TYPE_COLLECTIONS } from "./ui/collections-view";
@@ -21,6 +26,11 @@ import { CARBONWIRE_ICON, registerIcon } from "./ui/icon";
 import { disposeJsonWorker } from "./ui/json-format";
 import { refreshTabTitle, requestTitle, RequestView, VIEW_TYPE_REQUEST, type DraftState } from "./ui/request-view";
 import { SettingsView, settingsTitle, VIEW_TYPE_SETTINGS } from "./ui/settings-view";
+
+/** The globals file in the environments folder: the outermost variable scope, not an environment. */
+export const GLOBALS_FILE = "globals.yml";
+const CONSOLE_SIZE = 200;
+const CONSOLE_PREVIEW = 64 * 1024;
 
 export interface EnvironmentEntry {
 	path: string;
@@ -34,6 +44,10 @@ export default class CarbonWirePlugin extends Plugin {
 	actions!: ItemActions;
 	index!: CollectionIndex;
 	history!: HistoryStore;
+	network!: Network;
+	/** The last sends, newest last, for the console. */
+	readonly console: ConsoleEntry[] = [];
+	private consoleId = 0;
 	private readonly events = new Events();
 	private focusedRoot?: string;
 	private transport?: Transport;
@@ -41,7 +55,7 @@ export default class CarbonWirePlugin extends Plugin {
 
 	override async onload(): Promise<void> {
 		await this.loadSettings();
-		this.store = new CollectionStore(new ObsidianVaultFiles(this.app.vault));
+		this.store = new CollectionStore(new ObsidianVaultFiles(this.app.vault), (path) => this.index.collectionFor(path)?.root);
 		this.actions = new ItemActions(this.app, this);
 		this.index = new CollectionIndex(this.app, {
 			sortOrder: () => this.settings.sortOrder,
@@ -53,11 +67,14 @@ export default class CarbonWirePlugin extends Plugin {
 		const adapter = this.app.vault.adapter;
 		const vaultKey = adapter instanceof FileSystemAdapter ? adapter.getBasePath() : this.app.vault.getName();
 		this.history = new HistoryStore(`carbonwire-history:${vaultKey}`, () => this.settings.historySize, () => this.events.trigger("history-changed"));
+		this.network = new Network(this.app, () => this.settings, (path) => (adapter instanceof FileSystemAdapter ? adapter.getFullPath(path) : path));
 
 		registerIcon();
 		this.registerView(VIEW_TYPE_COLLECTIONS, (leaf) => new CollectionsView(leaf, this));
 		this.registerView(VIEW_TYPE_REQUEST, (leaf) => new RequestView(leaf, this));
 		this.registerView(VIEW_TYPE_SETTINGS, (leaf) => new SettingsView(leaf, this));
+		this.registerView(VIEW_TYPE_CONSOLE, (leaf) => new ConsoleView(leaf, this));
+		this.registerView(VIEW_TYPE_COOKIES, (leaf) => new CookiesView(leaf, this));
 		this.addSettingTab(new CarbonWireSettingTab(this.app, this));
 		this.addRibbonIcon(CARBONWIRE_ICON, "Open CarbonWire", () => void this.activateCollectionsView());
 		this.addCommand({
@@ -74,6 +91,17 @@ export default class CarbonWirePlugin extends Plugin {
 			id: "import",
 			name: "Import collection, environment or cURL",
 			callback: () => void this.openImport(),
+		});
+		this.addCommand({ id: "open-console", name: "Open console", callback: () => void this.openToolView(VIEW_TYPE_CONSOLE, "split") });
+		this.addCommand({ id: "manage-cookies", name: "Manage cookies", callback: () => void this.openToolView(VIEW_TYPE_COOKIES, "tab") });
+		this.addCommand({ id: "edit-globals", name: "Edit globals", callback: () => void this.editGlobals() });
+		this.addCommand({
+			id: "clear-oauth-tokens",
+			name: "Clear OAuth 2.0 tokens",
+			callback: () => {
+				this.oauth2?.clear();
+				new Notice("OAuth 2.0 tokens cleared. The next send fetches new ones.");
+			},
 		});
 		// Ctrl/Cmd+Enter is bound inside request tabs; this lets users add their own hotkey too.
 		this.addCommand({
@@ -138,6 +166,7 @@ export default class CarbonWirePlugin extends Plugin {
 
 	override onunload(): void {
 		this.index.flush();
+		this.network.flush();
 		this.transport?.dispose();
 		this.history.close();
 		disposeJsonWorker();
@@ -205,13 +234,26 @@ export default class CarbonWirePlugin extends Plugin {
 		return this.settings.environmentsFolder;
 	}
 
+	/** The globals file, whether or not it exists yet. */
+	globalsPath(): string {
+		return joinPath(this.environmentsFolder(), GLOBALS_FILE);
+	}
+
+	/** Opens the globals in the environment editor, creating the file when there's none. */
+	async editGlobals(): Promise<void> {
+		const path = this.globalsPath();
+		if (!this.store.exists(path)) await this.store.saveDocument(path, { name: "globals", variables: [] });
+		await this.openFile(path);
+	}
+
 	/** Environment files, shared by every collection, in the order they were dragged to. */
 	environments(): string[] {
 		const folder = this.app.vault.getFolderByPath(this.environmentsFolder());
 		if (!folder) return [];
 		const rank = new Map(this.settings.environmentOrder.map((name, i) => [name, i]));
+		const globals = this.globalsPath();
 		return folder.children
-			.filter((f): f is TFile => f instanceof TFile && isYaml(f.path))
+			.filter((f): f is TFile => f instanceof TFile && isYaml(f.path) && f.path !== globals)
 			.map((f) => f.path)
 			.sort((a, b) => (rank.get(stem(a)) ?? Infinity) - (rank.get(stem(b)) ?? Infinity) || compare(stem(a), stem(b)));
 	}
@@ -342,15 +384,20 @@ export default class CarbonWirePlugin extends Plugin {
 		const environment = this.activeEnvironment() || undefined;
 		const record = (outcome: Pick<HistoryEntry, "error"> & { response?: SendResult["response"] }) =>
 			void this.history.add({ time, name, source: path, environment, request, ...outcome }).catch(() => undefined);
+		let resolvedUrl = request.http?.url ?? "";
 		try {
-			const [{ requestScope, sendRequest }, { readBodyFile }, transport, oauth2] = await Promise.all([
+			const [{ requestScope, sendRequest }, { readBodyFile }, transport, oauth2, cookies] = await Promise.all([
 				import("./core/sender"),
 				import("./obsidian/body-files"),
 				this.getTransport(),
 				this.getOAuth2(),
+				this.network.cookieHooks(),
+				this.network.ready(),
 			]);
 			const { root, context, scope } = await this.scopeFor(path, request, requestScope);
-			const result = await sendRequest(buildRequest(request, context.chain, scope), {
+			const resolved = buildRequest(request, context.chain, scope);
+			resolvedUrl = resolved.url;
+			const result = await sendRequest(resolved, {
 				transport,
 				oauth2,
 				readFile: (file) => readBodyFile(this.app.vault, root, file),
@@ -358,11 +405,17 @@ export default class CarbonWirePlugin extends Plugin {
 				maxBodyBytes: Math.round(this.settings.maxResponseMB * 1024 * 1024),
 				signal,
 				onProgress,
+				cookies,
 			});
 			record({ response: result.response });
+			this.log(time, name, path, request, result);
 			return result;
 		} catch (e) {
-			if (!signal.aborted) record({ error: e instanceof Error ? e.message : String(e) });
+			const message = e instanceof Error ? e.message : String(e);
+			if (!signal.aborted) {
+				record({ error: message });
+				this.log(time, name, path, { ...request, http: { ...request.http, url: resolvedUrl } }, undefined, message);
+			}
 			throw e;
 		}
 	}
@@ -384,6 +437,88 @@ export default class CarbonWirePlugin extends Plugin {
 		} catch (e) {
 			new Notice(`Couldn't copy as cURL: ${e instanceof Error ? e.message : String(e)}`);
 		}
+	}
+
+	/**
+	 * The request as code, with variables and inherited auth resolved. No OAuth 2.0 token is
+	 * fetched for this, so a browser sign-in never starts from the Code tab.
+	 */
+	async snippet(path: string | undefined, request: HttpRequest, language: SnippetLanguage): Promise<string> {
+		const [{ requestScope }, { snippet }] = await Promise.all([import("./core/sender"), import("./core/export/snippet")]);
+		const { root, context, scope } = await this.scopeFor(path, request, requestScope);
+		const resolved = buildRequest(request, context.chain, scope);
+		const adapter = this.app.vault.adapter;
+		const base = adapter instanceof FileSystemAdapter ? adapter.getBasePath() : "";
+		const absolute = (file: string) => (/^(\/|[A-Za-z]:[\\/])/.test(file) ? file : `${base}/${joinPath(root, file)}`);
+		return snippet(language, resolved, { filePath: absolute, insecure: !this.settings.rejectUnauthorized || !resolved.settings.verifyTls });
+	}
+
+	/** Header presets from .carbonwire/header-presets.json at the vault root. */
+	async headerPresets(): Promise<HeaderPreset[]> {
+		const { HEADER_PRESETS_FILE, parsePresets } = await import("./core/header-presets");
+		const text = await this.app.vault.adapter.read(HEADER_PRESETS_FILE).catch(() => undefined);
+		return parsePresets(text);
+	}
+
+	async setHeaderPresets(presets: HeaderPreset[]): Promise<void> {
+		const { HEADER_PRESETS_FILE, serializePresets } = await import("./core/header-presets");
+		const adapter = this.app.vault.adapter;
+		if (!(await adapter.exists(dirname(HEADER_PRESETS_FILE)))) await adapter.mkdir(dirname(HEADER_PRESETS_FILE));
+		await adapter.write(HEADER_PRESETS_FILE, serializePresets(presets));
+	}
+
+	clearConsole(): void {
+		this.console.length = 0;
+		this.events.trigger("console", undefined);
+	}
+
+	/** A send was logged, or the console was cleared (undefined). */
+	onConsole(callback: (entry: ConsoleEntry | undefined) => void): () => void {
+		const ref = this.events.on("console", (entry) => callback(entry as ConsoleEntry | undefined));
+		return () => this.events.offref(ref);
+	}
+
+	private log(time: number, name: string, source: string | undefined, request: HttpRequest, result: SendResult | undefined, error?: string): void {
+		const response = result?.response;
+		const type = response?.headers.find(([n]) => n.toLowerCase() === "content-type")?.[1] ?? "";
+		const textual = response !== undefined && !/^(image|audio|video)\/|application\/(pdf|zip|octet-stream)/i.test(type);
+		const entry: ConsoleEntry = {
+			id: ++this.consoleId,
+			time,
+			name,
+			source,
+			method: result?.sent.method ?? (request.http?.method ?? "GET").toUpperCase(),
+			url: result?.sent.url ?? request.http?.url ?? "",
+			requestHeaders: result?.sent.headers ?? [],
+			requestBody: result?.sent.bodyPreview,
+			requestBytes: result?.sent.bodyBytes ?? 0,
+			status: response?.status,
+			statusText: response?.statusText,
+			httpVersion: response?.httpVersion,
+			responseHeaders: response?.headers,
+			responseBody: textual ? new TextDecoder().decode(response.body.subarray(0, CONSOLE_PREVIEW)) : undefined,
+			responseBytes: response?.bodyBytes,
+			durationMs: response?.timings.total,
+			redirects: response?.redirects,
+			remoteAddress: response?.remoteAddress,
+			proxy: response?.proxy,
+			tls: response?.tls && { protocol: response.tls.protocol, cipher: response.tls.cipher },
+			error,
+		};
+		this.console.push(entry);
+		if (this.console.length > CONSOLE_SIZE) this.console.splice(0, this.console.length - CONSOLE_SIZE);
+		this.events.trigger("console", entry);
+	}
+
+	/** Exporting is rare, so its code loads on first use. */
+	async exportCollection(root: string): Promise<void> {
+		const { exportCollection } = await import("./obsidian/exporter");
+		await exportCollection(this, root);
+	}
+
+	async exportEnvironment(path: string): Promise<void> {
+		const { exportEnvironment } = await import("./obsidian/exporter");
+		await exportEnvironment(this, path);
 	}
 
 	/** Names of every variable the request can use with the active environment, for highlighting. */
@@ -408,14 +543,20 @@ export default class CarbonWirePlugin extends Plugin {
 		const environmentPath = name ? this.environments().find((p) => stem(p) === name) : undefined;
 		const environment = environmentPath ? await this.store.loadEnvironment(environmentPath) : undefined;
 		const variables = resolveEnvironment(environment, (variable) => (environmentPath ? this.secretFor(environmentPath, variable) : null));
-		return { root, context, scope: requestScope(context, request, variables) };
+		const globalsPath = this.globalsPath();
+		const globals = this.store.exists(globalsPath) ? resolveEnvironment(await this.store.loadEnvironment(globalsPath), (variable) => this.secretFor(globalsPath, variable)) : undefined;
+		return { root, context, scope: requestScope(context, request, variables, globals) };
 	}
 
 	/** Node's http stack loads on first send rather than at startup. */
 	private async getTransport(): Promise<Transport> {
 		if (!this.transport) {
 			const { NodeTransport } = await import("./core/transport/node");
-			this.transport = new NodeTransport(`CarbonWire/${this.manifest.version}`);
+			this.transport = new NodeTransport(`CarbonWire/${this.manifest.version}`, {
+				proxy: (url) => this.network.proxyFor(url),
+				clientCertificate: (url) => this.network.certificateFor(url),
+				ca: () => this.network.certificateAuthorities(),
+			});
 		}
 		return this.transport;
 	}
@@ -423,7 +564,10 @@ export default class CarbonWirePlugin extends Plugin {
 	private async getOAuth2(): Promise<OAuth2Tokens> {
 		if (!this.oauth2) {
 			const { OAuth2Tokens } = await import("./core/auth/oauth2");
-			this.oauth2 = new OAuth2Tokens(await this.getTransport());
+			this.oauth2 = new OAuth2Tokens(await this.getTransport(), {
+				// Obsidian opens web links in the system browser.
+				open: async (url) => void window.open(url),
+			});
 		}
 		return this.oauth2;
 	}
@@ -435,6 +579,15 @@ export default class CarbonWirePlugin extends Plugin {
 		if (!existing) await leaf.setViewState({ type, state: { file: path }, active: true });
 		await workspace.revealLeaf(leaf);
 		if (leaf.view instanceof RequestView) leaf.view.focusUrl();
+	}
+
+	/** The console opens below the editor; the cookie manager as a tab. */
+	async openToolView(type: string, where: "split" | "tab"): Promise<void> {
+		const { workspace } = this.app;
+		const existing = workspace.getLeavesOfType(type)[0];
+		const leaf = existing ?? (where === "split" ? workspace.getLeaf("split", "horizontal") : workspace.getLeaf("tab"));
+		if (!existing) await leaf.setViewState({ type, active: true });
+		await workspace.revealLeaf(leaf);
 	}
 
 	private async activateCollectionsView(): Promise<void> {
@@ -454,14 +607,20 @@ export default class CarbonWirePlugin extends Plugin {
 	}
 
 	private fileChanged(file: TAbstractFile): void {
+		const root = this.index.collectionFor(file.path)?.root;
+		const deleted = this.app.vault.getAbstractFileByPath(file.path) === null;
+		if (deleted && root !== undefined) void this.store.forgetSidecar({ root, path: file.path }).catch(() => undefined);
 		this.store.invalidate(file.path);
 		this.index.createdOrDeleted(file);
 	}
 
 	private fileRenamed(file: TAbstractFile, oldPath: string): void {
+		const fromRoot = this.index.collectionFor(oldPath)?.root;
 		this.store.invalidate(oldPath);
 		this.store.invalidate(file.path);
 		this.index.renamed(file, oldPath);
+		const toRoot = this.index.collectionFor(file.path)?.root;
+		if (fromRoot !== undefined && toRoot !== undefined) void this.store.followSidecar({ root: fromRoot, path: oldPath }, { root: toRoot, path: file.path }).catch(() => undefined);
 		if (isYaml(oldPath) || !(file instanceof TFile)) void this.history.moveSource(oldPath, file.path).catch(() => undefined);
 		this.followEnvironmentRename(oldPath, file.path);
 		for (const type of [VIEW_TYPE_REQUEST, VIEW_TYPE_SETTINGS]) {

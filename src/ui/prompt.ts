@@ -4,8 +4,11 @@ import type { CollectionNode, TreeNode } from "../core/storage/tree";
 import ColorSwatches from "./ColorSwatches.svelte";
 import { colorForName } from "./env-colors";
 
-/** Asks for a single line of text; resolves to undefined if cancelled or left empty. */
-export function promptText(app: App, title: string, placeholder = "", initial = "", action = "Create"): Promise<string | undefined> {
+/**
+ * Asks for a single line of text; resolves to undefined if cancelled or left empty. A `secret`
+ * prompt hides what's typed, and resolves to "" when submitted empty, which clears the secret.
+ */
+export function promptText(app: App, title: string, placeholder = "", initial = "", action = "Create", secret = false): Promise<string | undefined> {
 	return new Promise((resolve) => {
 		const modal = new (class extends Modal {
 			private value = initial;
@@ -15,6 +18,7 @@ export function promptText(app: App, title: string, placeholder = "", initial = 
 				this.setTitle(title);
 				new Setting(this.contentEl).addText((text) => {
 					text.setPlaceholder(placeholder).setValue(initial).onChange((v) => (this.value = v));
+					if (secret) text.inputEl.type = "password";
 					text.inputEl.addEventListener("keydown", (e) => {
 						if (e.key === "Enter") {
 							e.preventDefault();
@@ -32,8 +36,8 @@ export function promptText(app: App, title: string, placeholder = "", initial = 
 			}
 
 			override onClose() {
-				const value = this.value.trim();
-				resolve(this.submitted && value ? value : undefined);
+				const value = secret ? this.value : this.value.trim();
+				resolve(this.submitted && (value || secret) ? value : undefined);
 			}
 		})(app);
 		modal.open();

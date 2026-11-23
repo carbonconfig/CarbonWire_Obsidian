@@ -8,8 +8,10 @@
 	import CodeEditor from "./CodeEditor.svelte";
 	import { formatBytes, formatMs, formatTime, statusClass } from "./format";
 	import { formatJson, prettyJson } from "./json-format";
+	import { queryJson } from "../core/jsonpath";
 	import JsonTree from "./JsonTree.svelte";
 	import PdfView from "./PdfView.svelte";
+	import { parseSetCookie } from "../core/cookies";
 
 	let {
 		result,
@@ -19,6 +21,9 @@
 		restoredAt,
 		wrap,
 		onWrapChange,
+		example,
+		onSaveBody,
+		onSaveExample,
 	}: {
 		result: SendResult | undefined;
 		error: string | undefined;
@@ -28,6 +33,10 @@
 		onWrapChange: (wrap: boolean) => void;
 		/** When the response was reopened from history, the time it was received. */
 		restoredAt?: number;
+		/** Set when a saved example is shown instead of a response. */
+		example?: string;
+		onSaveBody?: () => void;
+		onSaveExample?: () => void;
 	} = $props();
 
 	// Larger bodies are formatted in a worker; past PRETTY_LIMIT they're shown as received.
@@ -36,7 +45,7 @@
 	// The tree parses on the main thread, so it's limited to what parses quickly.
 	const TREE_LIMIT = 10_000_000;
 
-	let tab = $state<"body" | "headers" | "timeline">("body");
+	let tab = $state<"body" | "headers" | "cookies" | "timeline">("body");
 	let view = $state<"text" | "tree" | "preview">("text");
 	let pretty = $state(true);
 	let viewer = $state<ReturnType<typeof CodeEditor>>();
@@ -84,7 +93,24 @@
 		};
 	});
 
-	const shownText = $derived(prettyText ?? text);
+	/* A JSONPath filter shows only the values it selects, pretty-printed. */
+	let filter = $state("");
+	let filterInput = $state("");
+	const filtered = $derived.by((): { text: string } | { error: string } | undefined => {
+		if (!filter || !looksJson) return undefined;
+		if (text.length > TREE_LIMIT) return { error: `Filtering is limited to ${formatBytes(TREE_LIMIT)} of JSON.` };
+		try {
+			return { text: JSON.stringify(queryJson(JSON.parse(text), filter), null, 2) };
+		} catch (e) {
+			return { error: e instanceof Error ? e.message : String(e) };
+		}
+	});
+	$effect(() => {
+		void shown;
+		if (!filter) filterInput = "";
+	});
+
+	const shownText = $derived(filtered && "text" in filtered ? filtered.text : (prettyText ?? text));
 	const highlightJson = $derived(prettyText !== undefined || contentType.includes("json"));
 
 	const tree = $derived.by((): { value: unknown } | { message: string } | undefined => {
@@ -116,6 +142,19 @@
 		return () => {
 			if (url) URL.revokeObjectURL(url);
 		};
+	});
+
+	const shortDate = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+	const cookies = $derived.by(() => {
+		if (!shown) return [];
+		let url: URL;
+		try {
+			url = new URL(shown.url || result?.sent.url || "http://localhost/");
+		} catch {
+			url = new URL("http://localhost/");
+		}
+		return shown.headers.filter(([n]) => n.toLowerCase() === "set-cookie").map(([, v]) => ({ raw: v, cookie: parseSetCookie(v, url) }));
 	});
 
 	const PHASE_LABELS = {
@@ -172,14 +211,16 @@
 				<div class="carbonwire-tabs">
 					<button class:is-active={tab === "body"} onclick={() => (tab = "body")}>Body</button>
 					<button class:is-active={tab === "headers"} onclick={() => (tab = "headers")}>Headers <span class="carbonwire-count">{shown.headers.length}</span></button>
-					<button class:is-active={tab === "timeline"} onclick={() => (tab = "timeline")}>Timeline</button>
+					{#if cookies.length > 0}<button class:is-active={tab === "cookies"} onclick={() => (tab = "cookies")}>Cookies <span class="carbonwire-count">{cookies.length}</span></button>{/if}
+					{#if example === undefined}<button class:is-active={tab === "timeline"} onclick={() => (tab = "timeline")}>Timeline</button>{/if}
 				</div>
 				<div class="carbonwire-response-meta">
 					<span class="carbonwire-status {statusClass(shown.status)}">{shown.status} {shown.statusText}</span>
-					<span>{formatMs(result.response.timings.total)}</span>
+					{#if example === undefined}<span>{formatMs(result.response.timings.total)}</span>{/if}
 					<span>{formatBytes(result.response.bodyBytes)}</span>
 					{#if result.response.truncated}<span class="carbonwire-badge">Truncated to {formatBytes(result.response.body.byteLength)}</span>{/if}
-					{#if restoredAt !== undefined}<span class="carbonwire-badge" title="This response was reopened from history">From history, {formatTime(restoredAt)}</span>{/if}
+					{#if example !== undefined}<span class="carbonwire-badge" title="A saved example, not a response from this session">Example: {example}</span>
+					{:else if restoredAt !== undefined}<span class="carbonwire-badge" title="This response was reopened from history">From history, {formatTime(restoredAt)}</span>{/if}
 					{#if formatting && tab === "body" && shownView === "text"}<span class="carbonwire-muted">Formatting…</span>{/if}
 				</div>
 				<span class="carbonwire-spacer"></span>
@@ -199,6 +240,10 @@
 					{/if}
 					<button class="clickable-icon" aria-label="Copy body" onclick={() => navigator.clipboard.writeText(shownText)} use:icon={"copy"}></button>
 				{/if}
+				{#if shown && tab === "body"}
+					{#if onSaveBody}<button class="clickable-icon" aria-label="Save body to a file" onclick={onSaveBody} use:icon={"save"}></button>{/if}
+					{#if onSaveExample && example === undefined}<button class="clickable-icon" aria-label="Save as example" onclick={onSaveExample} use:icon={"bookmark"}></button>{/if}
+				{/if}
 			</div>
 		{/if}
 
@@ -208,6 +253,20 @@
 			{#each result?.warnings ?? [] as warning, i (i)}
 				<div class="carbonwire-warning">{warning}</div>
 			{/each}
+			{#if tab === "body" && looksJson && !isBinary && shownView !== "preview"}
+				<form
+					class="carbonwire-jsonpath"
+					onsubmit={(e) => {
+						e.preventDefault();
+						filter = filterInput.trim();
+						if (filter) view = "text";
+					}}
+				>
+					<input type="text" spellcheck="false" placeholder="Filter with JSONPath, such as $.items[?@.active].id" aria-label="JSONPath filter" bind:value={filterInput} oninput={() => filterInput.trim() === "" && (filter = "")} />
+					{#if filter}<button type="button" onclick={() => ((filter = ""), (filterInput = ""))}>Clear</button>{/if}
+				</form>
+				{#if filtered && "error" in filtered}<div class="carbonwire-warning">{filtered.error}</div>{/if}
+			{/if}
 			<div class="carbonwire-response-content">
 				{#if tab === "body"}
 					{#if isImage}
@@ -227,6 +286,26 @@
 							<CodeEditor bind:this={viewer} value={shownText} language={highlightJson ? "json" : "text"} readOnly {wrap} />
 						</div>
 					{/if}
+				{:else if tab === "cookies"}
+					<table class="carbonwire-table carbonwire-cookies">
+						<thead><tr><th>Name</th><th>Value</th><th>Domain</th><th>Path</th><th>Expires</th><th></th></tr></thead>
+						<tbody>
+							{#each cookies as { raw, cookie }, i (i)}
+								{#if cookie}
+									<tr>
+										<td>{cookie.name}</td>
+										<td class="carbonwire-mono">{cookie.value}</td>
+										<td>{cookie.hostOnly ? cookie.domain : `.${cookie.domain}`}</td>
+										<td>{cookie.path}</td>
+										<td>{cookie.expires === undefined ? "Session" : cookie.expires === 0 ? "Deleted" : shortDate(cookie.expires)}</td>
+										<td class="carbonwire-muted">{[cookie.secure && "Secure", cookie.httpOnly && "HttpOnly", cookie.sameSite && `SameSite=${cookie.sameSite}`].filter(Boolean).join(" · ")}</td>
+									</tr>
+								{:else}
+									<tr><td colspan="6" class="carbonwire-muted" title="The cookie isn't allowed for this site, so it wasn't kept">{raw} (refused)</td></tr>
+								{/if}
+							{/each}
+						</tbody>
+					</table>
 				{:else if tab === "headers"}
 					<table class="carbonwire-table">
 						<tbody>
@@ -250,8 +329,26 @@
 						<div class="carbonwire-phase is-total"><span>Total</span><span></span><span>{formatMs(response.timings.total)}</span></div>
 					</div>
 					<p class="carbonwire-muted">
-						HTTP/{response.httpVersion}{response.remoteAddress ? ` · ${response.remoteAddress}` : ""}{response.timings.reusedConnection ? " · Reused connection" : ""}
+						HTTP/{response.httpVersion}{response.remoteAddress ? ` · ${response.remoteAddress}${response.remotePort ? `:${response.remotePort}` : ""}` : ""}{response.proxy ? ` · Through the proxy ${response.proxy}` : ""}{response.timings.reusedConnection ? " · Reused connection" : ""}
 					</p>
+					{#if response.tls}
+						<h4>TLS</h4>
+						<div class="carbonwire-mono">{response.tls.protocol ?? "TLS"}{response.tls.cipher ? ` · ${response.tls.cipher}` : ""}</div>
+						<p class="carbonwire-muted">{response.tls.authorized ? "The certificate is trusted." : `The certificate isn't trusted${response.tls.authorizationError ? `: ${response.tls.authorizationError}` : ""}. It was accepted because certificate checks are off.`}</p>
+						{#each response.tls.certificates as cert, i (cert.fingerprint256)}
+							<details class="carbonwire-cert" open={i === 0}>
+								<summary>{cert.subject || "Certificate"}</summary>
+								<table class="carbonwire-table">
+									<tbody>
+										<tr><td>Issued by</td><td>{cert.issuer}</td></tr>
+										<tr><td>Valid</td><td>{cert.validFrom} to {cert.validTo}</td></tr>
+										{#if cert.subjectAltName}<tr><td>Names</td><td>{cert.subjectAltName}</td></tr>{/if}
+										<tr><td>SHA-256</td><td class="carbonwire-mono">{cert.fingerprint256}</td></tr>
+									</tbody>
+								</table>
+							</details>
+						{/each}
+					{/if}
 					{#if response.redirects.length > 0}
 						<h4>Redirects</h4>
 						{#each response.redirects as r, i (i)}

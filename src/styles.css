@@ -1070,3 +1070,226 @@ input.carbonwire-title-input:focus {
 	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);
 }
+
+/* Request settings */
+.carbonwire-request-settings {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+.carbonwire-field-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+	color: var(--text-normal);
+}
+.carbonwire-check {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+.carbonwire-field.carbonwire-check {
+	flex-direction: row;
+}
+.carbonwire-auth textarea,
+.carbonwire-docs-source {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	resize: vertical;
+}
+
+/* Header presets, the Code tab and examples */
+.carbonwire-presets,
+.carbonwire-code-bar,
+.carbonwire-docs-bar,
+.carbonwire-console-bar,
+.carbonwire-console-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-block: var(--size-4-2);
+}
+.carbonwire-snippet {
+	min-height: 12rem;
+}
+.carbonwire-examples tr.is-active td {
+	background: var(--background-modifier-hover);
+}
+.carbonwire-row-buttons {
+	text-align: right;
+	white-space: nowrap;
+}
+
+/* Responses: JSONPath filter, cookies and certificates */
+.carbonwire-jsonpath {
+	display: flex;
+	gap: var(--size-4-2);
+	padding: var(--size-4-1) 0;
+}
+.carbonwire-jsonpath input {
+	flex: 1;
+	font-family: var(--font-monospace);
+}
+.carbonwire-cookies th {
+	text-align: left;
+	color: var(--text-muted);
+	font-weight: normal;
+	font-size: var(--font-ui-small);
+}
+.carbonwire-cookies td {
+	word-break: break-all;
+}
+.carbonwire-cert summary {
+	cursor: pointer;
+	margin-block: var(--size-4-1);
+}
+
+/* Docs */
+.carbonwire-docs-source {
+	width: 100%;
+	min-height: 16rem;
+}
+.carbonwire-docs {
+	max-width: 48rem;
+	line-height: 1.5;
+	user-select: text;
+}
+.carbonwire-docs pre {
+	padding: var(--size-4-2);
+	background: var(--background-secondary);
+	overflow-x: auto;
+}
+.carbonwire-docs code {
+	font-family: var(--font-monospace);
+}
+.carbonwire-docs blockquote {
+	margin-inline: 0;
+	padding-inline-start: var(--size-4-3);
+	border-inline-start: 3px solid var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+/* Cookie manager */
+.carbonwire-cookie-add {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	margin-block: var(--size-4-2);
+}
+.carbonwire-cookie-add input {
+	flex: 1 1 14rem;
+	font-family: var(--font-monospace);
+}
+.carbonwire-filter-input {
+	width: 100%;
+	max-width: 24rem;
+	margin-block: var(--size-4-2);
+}
+.carbonwire-cookie-domain {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+/* Console */
+.carbonwire-console {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	padding-inline: var(--size-4-2);
+}
+.carbonwire-console-bar input {
+	flex: 0 1 24rem;
+}
+.carbonwire-console-list {
+	flex: 1;
+	overflow-y: auto;
+}
+.carbonwire-console-row {
+	display: grid;
+	grid-template-columns: auto auto auto 1fr auto;
+	align-items: center;
+	gap: var(--size-4-2);
+	width: 100%;
+	padding: var(--size-2-2) var(--size-4-1);
+	background: none;
+	border: none;
+	box-shadow: none;
+	text-align: left;
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+}
+.carbonwire-console-row:hover,
+.carbonwire-console-entry.is-open > .carbonwire-console-row {
+	background: var(--background-modifier-hover);
+}
+.carbonwire-console-url {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-monospace);
+}
+.carbonwire-console-time {
+	font-variant-numeric: tabular-nums;
+}
+.carbonwire-console-detail {
+	padding: var(--size-4-1) var(--size-4-3) var(--size-4-3);
+}
+.carbonwire-console-detail pre {
+	white-space: pre-wrap;
+	word-break: break-all;
+	max-height: 24rem;
+	overflow-y: auto;
+	user-select: text;
+}
+.carbonwire-console-empty {
+	padding: var(--size-4-3);
+}
+.workspace-leaf-content[data-type="carbonwire-console"] .carbonwire-console {
+	height: 100%;
+}
+
+/* The request tabs scroll sideways in a narrow pane, so the environment badge and buttons stay on one row. */
+.carbonwire-request-bar:not(.carbonwire-response-bar) {
+	flex-wrap: nowrap;
+}
+.carbonwire-request-bar:not(.carbonwire-response-bar) > .carbonwire-tabs {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: thin;
+}
+.carbonwire-request-bar:not(.carbonwire-response-bar) > .carbonwire-tabs button,
+.carbonwire-request-bar:not(.carbonwire-response-bar) > :not(.carbonwire-tabs) {
+	flex-shrink: 0;
+}
+
+/* Cookie tables: names, domains and dates stay whole; only values break. */
+.carbonwire-cookies th,
+.carbonwire-cookies td {
+	padding: var(--size-2-1) var(--size-4-1);
+}
+.carbonwire-table.carbonwire-cookies td {
+	word-break: normal;
+	width: auto;
+}
+.carbonwire-table.carbonwire-cookies td.carbonwire-mono {
+	word-break: break-all;
+}
+
+/* Examples: names read as text, and the buttons sit on one line. */
+.carbonwire-table.carbonwire-examples {
+	font-family: inherit;
+}
+.carbonwire-table.carbonwire-examples td:first-child {
+	color: var(--text-normal);
+}
+.carbonwire-examples td.carbonwire-row-buttons {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: var(--size-4-1);
+}

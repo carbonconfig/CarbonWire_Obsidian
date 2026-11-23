@@ -12,6 +12,7 @@
 		onEdit,
 		onMenu,
 		onMove,
+		onEditGlobals,
 	}: {
 		environments: EnvironmentEntry[];
 		active: string;
@@ -20,6 +21,8 @@
 		onEdit: (path: string) => void;
 		onMenu: (event: MouseEvent, path: string) => void;
 		onMove: (path: string, anchor: string, position: "before" | "after") => void;
+		/** Opens the globals, which apply whichever environment is active. */
+		onEditGlobals?: () => void;
 	} = $props();
 
 	function dropRules(path: string): DropOptions {
@@ -67,5 +70,19 @@
 	{/each}
 	{#if environments.length === 0}
 		<div class="carbonwire-hint">{emptyHint}</div>
+	{/if}
+	{#if onEditGlobals}
+		<div
+			class="tree-item-self is-clickable carbonwire-row carbonwire-env carbonwire-globals"
+			role="option"
+			aria-selected="false"
+			tabindex="0"
+			title="Variables for every request, whichever environment is active"
+			onclick={onEditGlobals}
+			onkeydown={(e) => e.key === "Enter" && onEditGlobals()}
+		>
+			<span class="carbonwire-env-mark" use:icon={"globe"}></span>
+			<span class="tree-item-inner carbonwire-muted">Globals</span>
+		</div>
 	{/if}
 </div>

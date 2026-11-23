@@ -285,13 +285,10 @@ function convertAuth(mode: string, file: BruFile, warnings: Warnings): Auth | un
 		case "apikey":
 			return { type: "apikey", key: a("key"), value: a("value"), placement: a("placement") === "queryparams" ? "query" : "header" };
 		case "ntlm":
-			warnings.add("NTLM auth is kept but not applied yet.");
 			return { type: "ntlm", username: a("username"), password: a("password"), domain: a("domain") };
 		case "awsv4":
-			warnings.add("AWS Signature auth is kept but not applied yet.");
 			return compact({ type: "awsv4", accessKeyId: a("accessKeyId"), secretAccessKey: a("secretAccessKey"), sessionToken: a("sessionToken") || undefined, service: a("service"), region: a("region"), profileName: a("profileName") || undefined });
 		case "wsse":
-			warnings.add("WSSE auth is kept but not applied yet.");
 			return { type: "wsse", username: a("username"), password: a("password") };
 		case "oauth2": {
 			const credentials = compact({ clientId: a("client_id"), clientSecret: a("client_secret") || undefined, placement: a("credentials_placement") === "body" ? ("body" as const) : ("basic_auth_header" as const) });
@@ -303,10 +300,8 @@ function convertAuth(mode: string, file: BruFile, warnings: Warnings): Auth | un
 				case "client_credentials":
 					return compact({ type: "oauth2", flow: "client_credentials", accessTokenUrl: a("access_token_url"), refreshTokenUrl: a("refresh_token_url") || undefined, credentials, scope, tokenConfig });
 				case "implicit":
-					warnings.add("OAuth 2.0 implicit auth is kept but not applied yet.");
 					return compact({ type: "oauth2", flow: "implicit", authorizationUrl: a("authorization_url"), callbackUrl: a("callback_url") || undefined, credentials: { clientId: a("client_id") }, scope, tokenConfig });
 				default:
-					warnings.add("OAuth 2.0 authorization code auth is kept but not applied yet.");
 					return compact({ type: "oauth2", flow: "authorization_code", authorizationUrl: a("authorization_url"), accessTokenUrl: a("access_token_url"), callbackUrl: a("callback_url") || undefined, credentials, scope, state: a("state") || undefined, pkce: a("pkce") === "true" ? { method: "S256" } : undefined, tokenConfig });
 			}
 		}

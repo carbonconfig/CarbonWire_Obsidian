@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onDestroy, tick, untrack } from "svelte";
-	import type { Auth, HttpRequest, HttpRequestBody, HttpRequestHeader, HttpRequestParam } from "../core/model";
+	import type { Auth, HttpRequest, HttpRequestBody, HttpRequestExample, HttpRequestHeader, HttpRequestParam } from "../core/model";
+	import { applyPreset, type HeaderPreset } from "../core/header-presets";
+	import type { LevelSettings } from "../core/inheritance";
+	import { findHeader } from "../core/headers";
+	import CodeEditor from "./CodeEditor.svelte";
+	import RequestSettings from "./RequestSettings.svelte";
 	import type { SendResult } from "../core/sender";
 	import type { SendProgress } from "../core/transport/types";
 	import type { EnvironmentEntry } from "../main";
@@ -27,6 +32,7 @@
 		initialDraft,
 		initialResult,
 		restoredAt: initialRestoredAt,
+		initialSnippetLanguage = "curl",
 		controller,
 	}: {
 		initial: HttpRequest;
@@ -41,8 +47,20 @@
 		/** Whether response bodies wrap long lines. */
 		initialWrap: boolean;
 		initialName: string;
+		/** The language the Code tab shows first. */
+		initialSnippetLanguage?: string;
 		controller: RequestController;
 	} = $props();
+
+	const SNIPPET_LANGUAGES = [
+		["curl", "cURL"],
+		["http", "HTTP"],
+		["fetch", "JavaScript (fetch)"],
+		["python", "Python (requests)"],
+		["go", "Go (net/http)"],
+	] as const;
+	/** Example bodies are kept up to this size, as text. */
+	const EXAMPLE_LIMIT = 1024 * 1024;
 
 	const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
@@ -132,7 +150,7 @@
 		name = renamed ?? name;
 		input.value = name;
 	}
-	let tab = $state<"params" | "headers" | "body" | "auth">("params");
+	let tab = $state<"params" | "headers" | "body" | "auth" | "settings" | "code" | "examples">("params");
 	let result = $state.raw<SendResult | undefined>(untrack(() => initialResult));
 	let error = $state<string | undefined>();
 	let sending = $state(false);
@@ -190,6 +208,116 @@
 		changed();
 	}
 
+	function setSettings(next: LevelSettings) {
+		if (Object.keys(next).length === 0) delete request.settings;
+		else request.settings = next;
+		changed();
+	}
+
+	/* The Code tab: the request as code, regenerated as the request changes. */
+	let snippetLanguage = $state(untrack(() => initialSnippetLanguage));
+	let snippetText = $state("");
+	$effect(() => {
+		if (tab !== "code") return;
+		const snapshot = $state.snapshot(request) as HttpRequest;
+		const language = snippetLanguage;
+		let current = true;
+		const timer = setTimeout(() => {
+			void controller.snippet(snapshot, language).then(
+				(text) => current && (snippetText = text),
+				(e: unknown) => current && (snippetText = `Couldn't write the code: ${e instanceof Error ? e.message : String(e)}`),
+			);
+		}, 150);
+		return () => {
+			current = false;
+			clearTimeout(timer);
+		};
+	});
+
+	/* Header presets, loaded when the Headers tab opens. */
+	let presets = $state.raw<HeaderPreset[]>([]);
+	$effect(() => {
+		if (tab === "headers") void controller.headerPresets().then((list) => (presets = list));
+	});
+
+	async function presetAction(choice: string) {
+		if (choice === "save") await controller.saveHeaderPreset($state.snapshot(http.headers ?? []) as HttpRequestHeader[]);
+		else if (choice === "remove") await controller.removeHeaderPreset();
+		else {
+			const preset = presets.find((p) => p.name === choice);
+			if (preset) setHeaders(applyPreset(http.headers ?? [], preset));
+			return;
+		}
+		presets = await controller.headerPresets();
+	}
+
+	/* Saved examples: shown in the response panel instead of the last response. */
+	let shownExample = $state<number | undefined>();
+	const examples = $derived(request.examples ?? []);
+	const exampleResult = $derived.by((): SendResult | undefined => {
+		const e = shownExample === undefined ? undefined : examples[shownExample];
+		if (!e) return undefined;
+		const body = new TextEncoder().encode(e.response?.body?.data ?? "");
+		const types: Record<string, string> = { json: "application/json", xml: "application/xml", html: "text/html", text: "text/plain" };
+		const headers = (e.response?.headers ?? []).map((h): [string, string] => [h.name, h.value]);
+		if (!headers.some(([n]) => n.toLowerCase() === "content-type") && e.response?.body?.type) headers.push(["Content-Type", types[e.response.body.type] ?? "text/plain"]);
+		return {
+			sent: { method: e.request?.method ?? "GET", url: e.request?.url ?? "", headers: [], bodyBytes: 0 },
+			response: {
+				url: e.request?.url ?? "",
+				status: e.response?.status ?? 0,
+				statusText: e.response?.statusText ?? "",
+				httpVersion: "1.1",
+				headers,
+				body,
+				bodyBytes: body.byteLength,
+				truncated: false,
+				timings: { dns: 0, connect: 0, tls: 0, wait: 0, download: 0, total: 0, reusedConnection: false },
+				redirects: [],
+			},
+			warnings: [],
+		};
+	});
+
+	async function saveExample() {
+		if (!result) return;
+		const { response, sent } = result;
+		const name = await controller.askName("Name the example", `${response.status} ${response.statusText}`.trim());
+		if (name === undefined) return;
+		const type = (findHeader(response.headers, "content-type") ?? "").toLowerCase();
+		const kind = type.includes("json") ? "json" : type.includes("xml") ? "xml" : type.includes("html") ? "html" : /^(image|audio|video)\/|pdf|zip|octet/.test(type) ? "binary" : "text";
+		const example: HttpRequestExample = {
+			name,
+			request: { url: sent.url, method: sent.method, headers: sent.headers.map(([n, v]) => ({ name: n, value: v })) },
+			response: {
+				status: response.status,
+				statusText: response.statusText,
+				headers: response.headers.map(([n, v]) => ({ name: n, value: v })),
+				...(kind === "binary" ? {} : { body: { type: kind, data: new TextDecoder().decode(response.body.subarray(0, EXAMPLE_LIMIT)) } }),
+			},
+		};
+		request.examples = [...(request.examples ?? []), example];
+		changed();
+		controller.notify(`Saved the example "${name}".`);
+	}
+
+	function deleteExample(i: number) {
+		const next = [...examples];
+		next.splice(i, 1);
+		if (next.length === 0) delete request.examples;
+		else request.examples = next;
+		if (shownExample === i) shownExample = undefined;
+		changed();
+	}
+
+	async function saveBody() {
+		const shown = exampleResult ?? result;
+		if (!shown) return;
+		const type = findHeader(shown.response.headers, "content-type") ?? "";
+		await controller.saveBody(shown.response.body, type, name);
+	}
+
+
 	export function snapshot(): HttpRequest {
 		return $state.snapshot(request) as HttpRequest;
 	}
@@ -232,6 +360,7 @@
 			await autosave.flush();
 			result = await controller.send(name, snapshot(), abort.signal, (next) => (progress = next));
 			restoredAt = undefined;
+			shownExample = undefined;
 		} catch (e) {
 			result = undefined;
 			error = e instanceof Error ? e.message : String(e);
@@ -334,6 +463,9 @@
 			<button class:is-active={tab === "headers"} onclick={() => (tab = "headers")}>Headers {#if http.headers?.length}<span class="carbonwire-count">{http.headers.length}</span>{/if}</button>
 			<button class:is-active={tab === "body"} onclick={() => (tab = "body")}>Body</button>
 			<button class:is-active={tab === "auth"} onclick={() => (tab = "auth")}>Auth</button>
+			<button class:is-active={tab === "settings"} onclick={() => (tab = "settings")}>Settings {#if request.settings && Object.keys(request.settings).length}<span class="carbonwire-count">{Object.keys(request.settings).length}</span>{/if}</button>
+			<button class:is-active={tab === "code"} onclick={() => (tab = "code")}>Code</button>
+			{#if examples.length > 0}<button class:is-active={tab === "examples"} onclick={() => (tab = "examples")}>Examples <span class="carbonwire-count">{examples.length}</span></button>{/if}
 		</div>
 		<span class="carbonwire-spacer"></span>
 		{#if environment}
@@ -380,10 +512,65 @@
 			/>
 		{:else if tab === "headers"}
 			<KeyValueTable rows={http.headers ?? []} onchange={setHeaders} create={() => ({ name: "", value: "" })} />
+			<div class="carbonwire-presets">
+				<select
+					class="dropdown"
+					aria-label="Header presets"
+					value=""
+					onchange={(e) => {
+						const choice = e.currentTarget.value;
+						e.currentTarget.value = "";
+						if (choice) void presetAction(choice);
+					}}
+				>
+					<option value="">Presets…</option>
+					{#if presets.length > 0}
+						<optgroup label="Add a preset's headers">
+							{#each presets as preset (preset.name)}<option value={preset.name}>{preset.name}</option>{/each}
+						</optgroup>
+					{/if}
+					<option value="save">Save these headers as a preset…</option>
+					{#if presets.length > 0}<option value="remove">Remove a preset…</option>{/if}
+				</select>
+			</div>
 		{:else if tab === "body"}
 			<BodyEditor bind:this={bodyEditor} body={http.body} onchange={setBody} />
-		{:else}
+		{:else if tab === "auth"}
 			<AuthEditor auth={http.auth} onchange={setAuth} />
+		{:else if tab === "settings"}
+			<RequestSettings settings={request.settings as LevelSettings | undefined} onchange={setSettings} level="request" />
+		{:else if tab === "code"}
+			<div class="carbonwire-code-bar">
+				<select
+					class="dropdown"
+					aria-label="Language"
+					value={snippetLanguage}
+					onchange={(e) => {
+						snippetLanguage = e.currentTarget.value;
+						controller.setSnippetLanguage(snippetLanguage);
+					}}
+				>
+					{#each SNIPPET_LANGUAGES as [id, label] (id)}<option value={id}>{label}</option>{/each}
+				</select>
+				<span class="carbonwire-spacer"></span>
+				<button class="clickable-icon" aria-label="Copy code" onclick={() => void navigator.clipboard.writeText(snippetText)} use:icon={"copy"}></button>
+			</div>
+			<div class="carbonwire-editor-host carbonwire-snippet"><CodeEditor value={snippetText} readOnly wrap={false} /></div>
+		{:else}
+			<table class="carbonwire-table carbonwire-examples">
+				<tbody>
+					{#each examples as e, i (i)}
+						<tr class:is-active={shownExample === i}>
+							<td>{e.name ?? `Example ${i + 1}`}</td>
+							<td class="carbonwire-muted">{e.response?.status ?? ""} {e.response?.statusText ?? ""}</td>
+							<td class="carbonwire-row-buttons">
+								<button onclick={() => (shownExample = shownExample === i ? undefined : i)}>{shownExample === i ? "Hide" : "Show"}</button>
+								<button class="clickable-icon" aria-label="Delete {e.name ?? 'example'}" onclick={() => deleteExample(i)} use:icon={"trash"}></button>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
 		{/if}
 	</div>
 </div>
@@ -398,8 +585,11 @@
 <div class="carbonwire-pane carbonwire-pane-response" bind:this={responsePane}>
 	<ResponsePanel
 		bind:this={responsePanel}
-		{result}
-		{error}
+		result={exampleResult ?? result}
+		error={exampleResult ? undefined : error}
+		example={exampleResult ? (examples[shownExample!]?.name ?? "Example") : undefined}
+		onSaveBody={() => void saveBody()}
+		onSaveExample={() => void saveExample()}
 		{sending}
 		{progress}
 		{restoredAt}

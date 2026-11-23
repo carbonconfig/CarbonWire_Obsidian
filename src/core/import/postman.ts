@@ -1,5 +1,7 @@
 import type { Auth, HttpRequest, HttpRequestBody, HttpRequestExample, HttpRequestHeader, HttpRequestParam } from "../model";
 import type { Script } from "@opencollection/types/common/scripts";
+import type { AuthOAuth1 } from "@opencollection/types/common/auth";
+import { flattenPostmanAuth, type PostmanAuth } from "../storage/sidecar";
 import { ImportError, Warnings, type ImportedCollection, type ImportedEnvironment, type ImportedItem, type ImportResult } from "./model";
 import { compact, findHeaderValue, header, isObject, objects, rawType, str, textBody, urlWithParams, variable, type Json } from "./util";
 
@@ -185,20 +187,43 @@ export function convertAuth(raw: unknown, warnings: Warnings): Auth | undefined 
 		case "digest":
 			return { type: "digest", username: p.username ?? "", password: p.password ?? "" };
 		case "ntlm":
-			warnings.add("NTLM auth is kept but not applied yet.");
 			return { type: "ntlm", username: p.username ?? "", password: p.password ?? "", domain: p.domain ?? "" };
 		case "awsv4":
-			warnings.add("AWS Signature auth is kept but not applied yet.");
 			return compact({ type: "awsv4", accessKeyId: p.accessKey, secretAccessKey: p.secretKey, sessionToken: p.sessionToken, region: p.region, service: p.service });
 		case "oauth2":
-			return convertOAuth2(p, warnings);
+			return convertOAuth2(p);
+		case "oauth1":
+			return compact({
+				type: "oauth1",
+				consumerKey: p.consumerKey,
+				consumerSecret: p.consumerSecret,
+				accessToken: p.token,
+				accessTokenSecret: p.tokenSecret,
+				signatureMethod: (p.signatureMethod || "HMAC-SHA1") as AuthOAuth1["signatureMethod"],
+				privateKey: p.privateKey ? { type: "text" as const, value: p.privateKey } : undefined,
+				callbackUrl: p.callback,
+				verifier: p.verifier,
+				timestamp: p.timestamp,
+				nonce: p.nonce,
+				version: p.version,
+				realm: p.realm,
+				placement: p.addParamsToHeader === "false" ? ("query" as const) : ("header" as const),
+				includeBodyHash: p.includeBodyHash === "true" || undefined,
+			});
+		case "hawk":
+		case "jwt":
+		case "akamai":
+		case "edgegrid":
+		case "asap":
+			// Kept in the collection's .carbonwire/collection.json when written; see storage/sidecar.
+			return flattenPostmanAuth(raw as PostmanAuth) as unknown as Auth;
 		default:
 			warnings.add(`"${type}" auth is not supported and was dropped.`);
 			return undefined;
 	}
 }
 
-function convertOAuth2(p: Record<string, string>, warnings: Warnings): Auth {
+function convertOAuth2(p: Record<string, string>): Auth {
 	const credentials = compact({ clientId: p.clientId, clientSecret: p.clientSecret, placement: p.client_authentication === "body" ? ("body" as const) : ("basic_auth_header" as const) });
 	const tokenConfig = { placement: p.addTokenTo === "queryParams" ? { query: "access_token" } : { header: p.headerPrefix ?? "Bearer" } };
 	switch (p.grant_type) {
@@ -206,10 +231,19 @@ function convertOAuth2(p: Record<string, string>, warnings: Warnings): Auth {
 			return compact({ type: "oauth2", flow: "resource_owner_password_credentials", accessTokenUrl: p.accessTokenUrl, credentials, resourceOwner: { username: p.username ?? "", password: p.password ?? "" }, scope: p.scope, tokenConfig });
 		case "authorization_code":
 		case "authorization_code_with_pkce":
-			warnings.add("OAuth 2.0 authorization code auth is kept but not applied yet.");
-			return compact({ type: "oauth2", flow: "authorization_code", authorizationUrl: p.authUrl, accessTokenUrl: p.accessTokenUrl, callbackUrl: p.redirect_uri, credentials, scope: p.scope, state: p.state, tokenConfig });
+			return compact({
+				type: "oauth2",
+				flow: "authorization_code",
+				authorizationUrl: p.authUrl,
+				accessTokenUrl: p.accessTokenUrl,
+				callbackUrl: p.redirect_uri,
+				credentials,
+				scope: p.scope,
+				state: p.state,
+				pkce: p.grant_type === "authorization_code_with_pkce" ? { method: p.challengeAlgorithm === "plain" ? ("plain" as const) : ("S256" as const) } : undefined,
+				tokenConfig,
+			});
 		case "implicit":
-			warnings.add("OAuth 2.0 implicit auth is kept but not applied yet.");
 			return compact({ type: "oauth2", flow: "implicit", authorizationUrl: p.authUrl, callbackUrl: p.redirect_uri, credentials: { clientId: p.clientId }, scope: p.scope, tokenConfig });
 		default:
 			return compact({ type: "oauth2", flow: "client_credentials", accessTokenUrl: p.accessTokenUrl, credentials, scope: p.scope, tokenConfig });
