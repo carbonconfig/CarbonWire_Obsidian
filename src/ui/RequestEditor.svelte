@@ -109,7 +109,7 @@
 
 	/** Shows a send from history, unless the user has already sent the request in this tab. */
 	export function restore(next: SendResult | undefined, time: number, failure?: string) {
-		if (sending || result || error) return;
+		if (sending || result || error || cancelledAfter !== undefined) return;
 		result = next;
 		restoredAt = time;
 		error = failure && `The last send, ${formatTime(time)}, failed: ${failure}`;
@@ -161,6 +161,7 @@
 	let result = $state.raw<SendResult | undefined>(untrack(() => initialResult));
 	let error = $state<string | undefined>();
 	let sending = $state(false);
+	let cancelledAfter = $state<number | undefined>();
 	let progress = $state.raw<SendProgress | undefined>();
 	let abort: AbortController | undefined;
 	const autosave = createAutosave(() => controller.save($state.snapshot(request) as HttpRequest));
@@ -361,8 +362,11 @@
 		if (sending) return;
 		sending = true;
 		error = undefined;
+		cancelledAfter = undefined;
 		progress = undefined;
 		abort = new AbortController();
+		const signal = abort.signal;
+		const started = performance.now();
 		try {
 			await autosave.flush();
 			result = await controller.send(name, snapshot(), abort.signal, (next) => (progress = next));
@@ -370,7 +374,8 @@
 			shownExample = undefined;
 		} catch (e) {
 			result = undefined;
-			error = e instanceof Error ? e.message : String(e);
+			if (signal.aborted) cancelledAfter = performance.now() - started;
+			else error = e instanceof Error ? e.message : String(e);
 		} finally {
 			sending = false;
 			abort = undefined;
@@ -594,6 +599,9 @@
 		bind:this={responsePanel}
 		initialView={responseView}
 		onviewchange={(next) => (responseView = next)}
+		cancelledAfter={exampleResult ? undefined : cancelledAfter}
+		oncancel={() => abort?.abort()}
+		onsendagain={() => void send()}
 		result={exampleResult ?? result}
 		error={exampleResult ? undefined : error}
 		example={exampleResult ? (examples[shownExample!]?.name ?? "Example") : undefined}

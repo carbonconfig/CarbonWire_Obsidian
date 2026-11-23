@@ -27,6 +27,9 @@
 		onSaveExample,
 		initialView,
 		onviewchange,
+		cancelledAfter,
+		oncancel,
+		onsendagain,
 	}: {
 		result: SendResult | undefined;
 		error: string | undefined;
@@ -42,6 +45,10 @@
 		onSaveExample?: () => void;
 		initialView?: ResponseView;
 		onviewchange?: (view: ResponseView) => void;
+		/** Set when the last send was cancelled, to how long it had run. */
+		cancelledAfter?: number;
+		oncancel?: () => void;
+		onsendagain?: () => void;
 	} = $props();
 
 	// Larger bodies are formatted in a worker; past PRETTY_LIMIT they're shown as received.
@@ -183,6 +190,20 @@
 		return () => window.clearInterval(timer);
 	});
 
+	/* Escape cancels while focus is in the response pane; the URL field and editors keep Escape for themselves. */
+	let root: HTMLDivElement;
+	$effect(() => {
+		if (!sending || !oncancel) return;
+		const cancel = oncancel;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key !== "Escape") return;
+			e.preventDefault();
+			cancel();
+		};
+		root.addEventListener("keydown", onKey);
+		return () => root.removeEventListener("keydown", onKey);
+	});
+
 	const progressText = $derived.by(() => {
 		const label = PHASE_LABELS[progress?.phase ?? "connecting"];
 		const received = progress?.phase === "downloading" && progress.received ? ` ${formatBytes(progress.received)}${progress.total ? ` of ${formatBytes(progress.total)}` : ""}` : "";
@@ -203,7 +224,7 @@
 	);
 </script>
 
-<div class="carbonwire-response">
+<div class="carbonwire-response" bind:this={root}>
 	{#if sending}
 		<div class="carbonwire-progress" class:is-indeterminate={progressRatio === undefined} role="progressbar" aria-label={progressText} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressRatio === undefined ? undefined : Math.round(progressRatio * 100)}>
 			<div class="carbonwire-progress-bar" style:width={progressRatio === undefined ? undefined : `${progressRatio * 100}%`}></div>
@@ -211,6 +232,8 @@
 		<div class="carbonwire-muted carbonwire-response-placeholder carbonwire-sending">
 			<div>{progressText}</div>
 			<div class="carbonwire-sending-time">{formatMs(now - startedAt)}</div>
+			<!-- Shown after half a second, so quick requests don't flash it. -->
+			{#if oncancel && now - startedAt >= 500}<button class="carbonwire-cancel" onclick={oncancel}>Cancel request</button>{/if}
 		</div>
 	{:else}
 		{#if result && shown}
@@ -254,7 +277,12 @@
 			</div>
 		{/if}
 
-		{#if error}
+		{#if cancelledAfter !== undefined}
+			<div class="carbonwire-muted carbonwire-response-placeholder carbonwire-sending">
+				<div>Cancelled after {formatMs(cancelledAfter)}.</div>
+				{#if onsendagain}<button class="carbonwire-cancel" onclick={onsendagain}>Send again</button>{/if}
+			</div>
+		{:else if error}
 			<div class="carbonwire-error">{error}</div>
 		{:else if shown}
 			{#each result?.warnings ?? [] as warning, i (i)}
