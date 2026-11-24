@@ -116,7 +116,7 @@ Commands in the palette: **Open collections**, **New request**, **Import collect
 | Setting | Default | What it does |
 |---|---|---|
 | Collections folder | `API Collections` | Where new collections are created. Existing collections are found anywhere in the vault. |
-| Environments folder | `API Collections/Environments` | Where environments are kept. They're shared by every collection. |
+| Environments folder | `API Collections/Environments` | Where environments are kept. They're shared by every collection. Follows the folder when you move or rename it in Obsidian. |
 | Response size limit | 20 MB | Larger bodies are cut short in memory; the full size is still shown. |
 | History size | 100 | How many recent requests to keep. Set to 0 to turn history off. |
 | Wrap long lines in responses | On | Wraps long lines instead of scrolling sideways. Also on the response toolbar. |

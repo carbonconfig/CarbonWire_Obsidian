@@ -5,7 +5,7 @@ import { buildRequest } from "./core/request-builder";
 import { environmentSecretId } from "./core/secrets";
 import type { SendResult } from "./core/sender";
 import { insertKey, type SortOrder } from "./core/storage/order";
-import { dirname, joinPath, stem } from "./core/storage/paths";
+import { dirname, joinPath, movedPath, stem } from "./core/storage/paths";
 import { CollectionStore } from "./core/storage/store";
 import { compare, isYaml, type CollectionNode } from "./core/storage/tree";
 import type { SendProgress, Transport } from "./core/transport/types";
@@ -615,6 +615,7 @@ export default class CarbonWirePlugin extends Plugin {
 	}
 
 	private fileRenamed(file: TAbstractFile, oldPath: string): void {
+		this.followEnvironmentsFolder(oldPath, file.path);
 		const fromRoot = this.index.collectionFor(oldPath)?.root;
 		this.store.invalidate(oldPath);
 		this.store.invalidate(file.path);
@@ -630,6 +631,14 @@ export default class CarbonWirePlugin extends Plugin {
 				else if (view.file?.startsWith(`${oldPath}/`)) view.renamed(file.path + view.file.slice(oldPath.length));
 			}
 		}
+	}
+
+	/** Keeps the environments folder setting on the folder when it, or a folder above it, moves. */
+	private followEnvironmentsFolder(oldPath: string, newPath: string): void {
+		const moved = movedPath(this.settings.environmentsFolder, oldPath, newPath);
+		if (moved === undefined) return;
+		this.settings.environmentsFolder = moved;
+		void this.saveSettings();
 	}
 
 	/** Keeps an environment selected, and in its place, when its file is renamed in place. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { movedPath } from "../src/core/storage/paths";
 import { CollectionStore } from "../src/core/storage/store";
 import { buildCollections, extractMeta, filterCollections } from "../src/core/storage/tree";
 import { MemoryFiles } from "./memory-files";
@@ -138,5 +139,14 @@ describe("CollectionStore folders", () => {
 		expect(parse(mem.files.get("api/plain/folder.yml")!)).toMatchObject({ request: { auth: "inherit" } });
 		await store.ensureFolderConfig("api/existing");
 		expect(parse(mem.files.get("api/existing/folder.yml")!)).toEqual({ info: { name: "kept" } });
+	});
+});
+
+describe("movedPath", () => {
+	it("follows a folder, or a folder above it, and nothing else", () => {
+		expect(movedPath("api-collections/environments", "api-collections", "work/apis")).toBe("work/apis/environments");
+		expect(movedPath("api-collections/environments", "api-collections/environments", "envs")).toBe("envs");
+		expect(movedPath("api-collections/environments", "api-collections-old", "x")).toBeUndefined();
+		expect(movedPath("api-collections", "api-collections/environments", "x")).toBeUndefined();
 	});
 });
