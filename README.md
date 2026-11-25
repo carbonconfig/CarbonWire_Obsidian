@@ -32,6 +32,9 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 - Paste a curl command into the URL bar and the whole request fills in. Copy any request back out as curl.
 - The request as code: cURL, raw HTTP, JavaScript `fetch`, Python `requests` or Go
 - Header presets: save a set of headers once and add it to any request
+- Suggestions as you type: `{{` lists the variables in scope with their values (secrets stay masked), and `{{$` the dynamic values. Header names and their usual values, such as `application/json` for `Content-Type`, are suggested too.
+- Bulk edit params, headers and form fields as `name: value` lines, with `//` in front of a disabled row
+- Go to request: find any request by name, collection or folder, and open it
 - Comment out lines of a JSON body with `Ctrl+/` (`Cmd+/`). Commented lines aren't sent.
 - Mistakes in a JSON body, such as a missing comma or an unclosed bracket, are underlined where they are and described below the editor. Comments and unquoted `{{variables}}` count as fine. **Format JSON** lays the body out and keeps them as they are.
 - A request opens on the first of Body, Params, Auth and Headers that has something in it, and each tab comes back as you left it: its tabs, response view and JSONPath filter
@@ -110,8 +113,9 @@ Auth that OpenCollection files have no place for (Hawk, Akamai EdgeGrid, JWT Bea
 | Comment out JSON body lines | `Ctrl/Cmd + /` |
 | Cancel a request in flight | `Escape` in the response pane |
 | Edit a `{{variable}}` where it's set | `Ctrl/Cmd + Click` on it |
+| Pick a suggestion | Arrow keys, then `Enter` or `Tab`; `Escape` closes the list |
 
-Commands in the palette: **Open collections**, **New request**, **Import collection, environment or cURL**, **Send request**, **Edit globals**, **Open console**, **Manage cookies** and **Clear OAuth 2.0 tokens**. Assign your own hotkeys to any of them.
+Commands in the palette: **Open collections**, **Go to request**, **New request**, **Import collection, environment or cURL**, **Send request**, **Edit globals**, **Open console**, **Manage cookies** and **Clear OAuth 2.0 tokens**. Assign your own hotkeys to any of them.
 
 ## Settings
 

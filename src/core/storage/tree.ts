@@ -153,3 +153,25 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 export function compare(a: string, b: string): number {
 	return collator.compare(a, b);
 }
+
+/** A request with where it sits, for searching every collection by name. */
+export interface RequestEntry {
+	path: string;
+	name: string;
+	collection: string;
+	/** Folder names from the collection down. */
+	folders: string[];
+}
+
+/** Every request in the collections, in the order the sidebar shows them. */
+export function listRequests(collections: readonly CollectionNode[]): RequestEntry[] {
+	const out: RequestEntry[] = [];
+	const walk = (nodes: readonly TreeNode[], collection: string, folders: string[]) => {
+		for (const n of nodes) {
+			if (n.kind === "request") out.push({ path: n.path, name: n.name, collection, folders });
+			else walk(n.children, collection, [...folders, n.name]);
+		}
+	};
+	for (const c of collections) walk(c.children, c.name, []);
+	return out;
+}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from "svelte";
 	import { templateSegments } from "../core/variables";
+	import { suggestField } from "./suggest-field";
 	import { mirrorHover } from "./variable-hover";
 	import { isDefined, useVariables } from "./variables-context";
 
@@ -86,6 +87,7 @@
 	<div class="carbonwire-url-field" use:mirrorHover={{ context: highlight ? variables : undefined, mirror: () => mirror }}>
 		<textarea
 			bind:this={area}
+			use:suggestField={{ context: variables?.info ? variables : undefined, apply: oninput }}
 			rows="1"
 			spellcheck="false"
 			wrap={expanded ? "soft" : "off"}

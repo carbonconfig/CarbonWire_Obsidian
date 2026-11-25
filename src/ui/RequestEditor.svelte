@@ -8,6 +8,7 @@
 	import RequestSettings from "./RequestSettings.svelte";
 	import type { SendResult } from "../core/sender";
 	import type { VariableInfo } from "../core/variables";
+	import { suggestHeaderNames, suggestHeaderValues } from "../core/suggest";
 	import type { SendProgress } from "../core/transport/types";
 	import type { EnvironmentEntry } from "../main";
 	import type { RequestLayout } from "../settings";
@@ -534,7 +535,7 @@
 				create={(): HttpRequestParam => ({ name: "", value: "", type: "query" })}
 			/>
 		{:else if tab === "headers"}
-			<KeyValueTable rows={http.headers ?? []} onchange={setHeaders} create={() => ({ name: "", value: "" })} />
+			<KeyValueTable rows={http.headers ?? []} onchange={setHeaders} create={() => ({ name: "", value: "" })} suggestName={suggestHeaderNames} suggestValue={suggestHeaderValues} />
 			<div class="carbonwire-presets">
 				<select
 					class="dropdown"

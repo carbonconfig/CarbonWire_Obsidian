@@ -92,6 +92,11 @@ export default class CarbonWirePlugin extends Plugin {
 			callback: () => void this.openDraft(),
 		});
 		this.addCommand({
+			id: "go-to-request",
+			name: "Go to request",
+			callback: () => void import("./ui/go-to-request").then(({ GoToRequestModal }) => new GoToRequestModal(this.app, this).open()),
+		});
+		this.addCommand({
 			id: "import",
 			name: "Import collection, environment or cURL",
 			callback: () => void this.openImport(),

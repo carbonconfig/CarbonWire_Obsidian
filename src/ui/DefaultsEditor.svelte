@@ -8,6 +8,7 @@
 	import type { LevelSettings } from "../core/inheritance";
 	import { renderMarkdown } from "./markdown";
 	import RequestSettings from "./RequestSettings.svelte";
+	import { suggestHeaderNames, suggestHeaderValues } from "../core/suggest";
 	import { focusRow, type VariableFocus } from "./focus-row";
 
 	type Doc = { info?: { name?: string }; request?: RequestDefaults; docs?: string | { content: string; type?: string } | null };
@@ -110,7 +111,7 @@
 				editValue={withValue}
 			/>
 		{:else if tab === "headers"}
-			<KeyValueTable rows={defaults.headers ?? []} onchange={setHeaders} create={() => ({ name: "", value: "" })} />
+			<KeyValueTable rows={defaults.headers ?? []} onchange={setHeaders} create={() => ({ name: "", value: "" })} suggestName={suggestHeaderNames} suggestValue={suggestHeaderValues} />
 		{:else if tab === "auth"}
 			<AuthEditor auth={defaults.auth} onchange={setAuth} canInherit={kind === "folder"} />
 		{:else if tab === "settings"}

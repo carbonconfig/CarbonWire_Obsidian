@@ -2,6 +2,8 @@
 	import { onMount } from "svelte";
 	import type { HTMLInputAttributes } from "svelte/elements";
 	import { templateSegments } from "../core/variables";
+	import type { Suggestion } from "../core/suggest";
+	import { suggestField } from "./suggest-field";
 	import { mirrorHover } from "./variable-hover";
 	import { isDefined, useVariables } from "./variables-context";
 
@@ -9,8 +11,15 @@
 		value,
 		oninput,
 		class: className = "",
+		suggest,
 		...rest
-	}: { value: string; oninput: (value: string) => void; class?: string } & Omit<HTMLInputAttributes, "value" | "oninput" | "class"> = $props();
+	}: {
+		value: string;
+		oninput: (value: string) => void;
+		class?: string;
+		/** Suggestions for the whole field, such as header names. */
+		suggest?: (text: string) => Suggestion[];
+	} & Omit<HTMLInputAttributes, "value" | "oninput" | "class"> = $props();
 
 	const variables = useVariables();
 	let input: HTMLInputElement;
@@ -65,6 +74,7 @@
 <div class="carbonwire-var-input {className}" class:is-highlighting={highlight} use:mirrorHover={{ context: highlight ? variables : undefined, mirror: () => mirror }}>
 	<input
 		bind:this={input}
+		use:suggestField={{ context: variables?.info ? variables : undefined, suggest: rest.readonly ? undefined : suggest, apply: oninput }}
 		type="text"
 		spellcheck="false"
 		{...rest}

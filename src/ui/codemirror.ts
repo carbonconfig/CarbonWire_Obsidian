@@ -13,12 +13,15 @@ import {
 	searchKeymap,
 	setSearchQuery,
 } from "@codemirror/search";
-import { Compartment, EditorState, StateEffect, StateField, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, Prec, StateEffect, StateField, type Extension } from "@codemirror/state";
 import { Decoration, drawSelection, EditorView, keymap, lineNumbers, MatchDecorator, ViewPlugin, type DecorationSet, type Panel, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { setIcon } from "obsidian";
 import type { JsonProblem } from "../core/json-check";
 import { isDynamicVariable } from "../core/variables";
+import { DYNAMIC_NAMES } from "../core/dynamic";
+import { suggestVariables, variableQuery } from "../core/suggest";
+import { hideSuggestions, showSuggestions, suggestionKey, suggestionsOpenFor } from "./suggest-popup";
 import { hideVariable, isEditClick, isLinkModifier, showVariable } from "./variable-hover";
 import type { VariablesContext } from "./variables-context";
 
@@ -253,6 +256,48 @@ function variableHover(context: () => VariablesContext | undefined): Extension {
 	];
 }
 
+/** Typing {{ lists the variables in scope; arrow keys, Enter, Tab and Escape work the list. */
+function variableSuggest(context: () => VariablesContext | undefined): Extension {
+	const update = (view: EditorView) => {
+		const ctx = context();
+		const selection = view.state.selection.main;
+		if (!ctx?.info || !view.hasFocus || !view.state.field(variablesField) || !selection.empty) return hideSuggestions(view);
+		const line = view.state.doc.lineAt(selection.head);
+		const query = variableQuery(line.text, selection.head - line.from);
+		if (!query) return hideSuggestions(view);
+		const items = suggestVariables(query.query, ctx.info.values(), DYNAMIC_NAMES);
+		const from = line.from + query.from;
+		const to = line.from + query.to;
+		// Layout can't be read during an update, so the caret's place is measured after it.
+		view.requestMeasure({
+			read: () => view.coordsAtPos(selection.head),
+			write: (at) => {
+				if (!at) return hideSuggestions(view);
+				showSuggestions(view, items, new DOMRect(at.left, at.top, 0, at.bottom - at.top), (s) => {
+					view.dispatch({ changes: { from, to, insert: s.insert }, selection: { anchor: from + s.insert.length }, userEvent: "input.complete" });
+					view.focus();
+				});
+			},
+		});
+	};
+	const key = (name: string) => (view: EditorView) => suggestionKey(view, name);
+	return [
+		ViewPlugin.fromClass(
+			class {
+				constructor(readonly view: EditorView) {}
+				update(u: ViewUpdate) {
+					const typed = u.transactions.some((t) => t.isUserEvent("input.type") || t.isUserEvent("delete.backward"));
+					if (typed || ((u.selectionSet || u.focusChanged) && suggestionsOpenFor(u.view))) update(u.view);
+				}
+				destroy() {
+					hideSuggestions(this.view);
+				}
+			},
+		),
+		Prec.highest(keymap.of(["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].map((name) => ({ key: name, run: key(name) })))),
+	];
+}
+
 const setProblem = StateEffect.define<JsonProblem | undefined>();
 
 /** A mistake in the JSON, underlined, with its message on hover. */
@@ -348,7 +393,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 		extensions.push(EditorState.readOnly.of(true));
 	} else {
 		extensions.push(history(), indentOnInput(), variablesField, variableHighlighter, problemField);
-		if (options.variables) extensions.push(variableHover(options.variables));
+		if (options.variables) extensions.push(variableHover(options.variables), variableSuggest(options.variables));
 		extensions.push(EditorView.updateListener.of((update) => {
 			if (update.docChanged) options.onChange?.(update.state.doc.toString());
 		}));
