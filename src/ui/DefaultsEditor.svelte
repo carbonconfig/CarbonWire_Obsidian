@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { onDestroy, tick, untrack } from "svelte";
 	import type { Auth, HttpRequestHeader, RequestDefaults, Variable } from "../core/model";
 	import { variableValue, withValue } from "../core/variables";
 	import AuthEditor from "./AuthEditor.svelte";
@@ -8,6 +8,7 @@
 	import type { LevelSettings } from "../core/inheritance";
 	import { renderMarkdown } from "./markdown";
 	import RequestSettings from "./RequestSettings.svelte";
+	import { focusRow, type VariableFocus } from "./focus-row";
 
 	type Doc = { info?: { name?: string }; request?: RequestDefaults; docs?: string | { content: string; type?: string } | null };
 
@@ -36,6 +37,21 @@
 	function setVariables(rows: Variable[]) {
 		defaults.variables = rows;
 		autosave.schedule();
+	}
+
+	let content: HTMLDivElement;
+
+	/** Opens the Variables tab at a variable, e.g. after Ctrl+Click in a request. */
+	export async function focusVariable({ variable, create }: VariableFocus) {
+		tab = "variables";
+		const rows = defaults.variables ?? [];
+		let i = rows.findIndex((r) => r.name === variable);
+		if (i < 0 && create) {
+			defaults.variables = [...rows, { name: variable, value: "" }];
+			i = rows.length;
+		}
+		await tick();
+		focusRow(content, i);
 	}
 
 	function setHeaders(rows: HttpRequestHeader[]) {
@@ -84,7 +100,7 @@
 		<button class:is-active={tab === "auth"} onclick={() => (tab = "auth")}>Auth</button>
 		<button class:is-active={tab === "settings"} onclick={() => (tab = "settings")}>Settings</button>
 	</div>
-	<div class="carbonwire-request-content">
+	<div class="carbonwire-request-content" bind:this={content}>
 		{#if tab === "variables"}
 			<KeyValueTable
 				rows={defaults.variables ?? []}

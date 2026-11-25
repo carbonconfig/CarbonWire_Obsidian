@@ -71,6 +71,58 @@ export function buildScope(layers: ScopeLayers): Scope {
 	return scope;
 }
 
+export type VariableSource = "globals" | "collection" | "environment" | "folder" | "request";
+
+/** One scope's variables, for {@link describeScope}. */
+export interface SourceLayer {
+	source: VariableSource;
+	variables?: readonly Variable[];
+	/** The collection's, environment's or folder's name. */
+	label?: string;
+	/** The file that sets a variable; a merged environment has several. */
+	file?: string | ((name: string) => string | undefined);
+	/** Names whose values are kept secret. */
+	secrets?: ReadonlySet<string>;
+}
+
+/** A variable in scope, for its hover. */
+export interface VariableInfo {
+	name: string;
+	/** Resolved, with secret values masked, and cut short when long. */
+	value: string;
+	source: VariableSource;
+	label?: string;
+	file?: string;
+	secret?: boolean;
+}
+
+export const MASK = "••••••";
+const SHOWN_LENGTH = 500;
+
+/**
+ * Every variable in scope, with its value and where it's set; later layers win, as in {@link buildScope}.
+ * Secret values are masked, also inside other values that use them.
+ */
+export function describeScope(layers: readonly SourceLayer[]): VariableInfo[] {
+	const winners = new Map<string, { raw: string; layer: SourceLayer }>();
+	for (const layer of layers) {
+		for (const v of layer.variables ?? []) {
+			if (v.disabled) continue;
+			const value = variableValue(v);
+			if (value !== undefined) winners.set(v.name, { raw: value, layer });
+		}
+	}
+	const masked = new Map<string, string>();
+	for (const [name, { raw, layer }] of winners) masked.set(name, layer.secrets?.has(name) ? MASK : raw);
+	return [...winners].map(([name, { layer }]) => {
+		const secret = layer.secrets?.has(name) === true;
+		let value = secret ? MASK : interpolate(masked.get(name)!, masked);
+		if (value.length > SHOWN_LENGTH) value = `${value.slice(0, SHOWN_LENGTH)}…`;
+		const file = typeof layer.file === "function" ? layer.file(name) : layer.file;
+		return { name, value, source: layer.source, ...(layer.label ? { label: layer.label } : {}), ...(file ? { file } : {}), ...(secret ? { secret } : {}) };
+	});
+}
+
 export { isDynamicVariable } from "./dynamic";
 
 /** A piece of text that is either literal or a {{variable}} reference. */

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tick } from "svelte";
 	import { templateSegments } from "../core/variables";
+	import { mirrorHover } from "./variable-hover";
 	import { isDefined, useVariables } from "./variables-context";
 
 	let {
@@ -82,7 +83,7 @@
 </script>
 
 <div class="carbonwire-url-input {className}" class:is-expanded={expanded} class:is-highlighting={highlight}>
-	<div class="carbonwire-url-field">
+	<div class="carbonwire-url-field" use:mirrorHover={{ context: highlight ? variables : undefined, mirror: () => mirror }}>
 		<textarea
 			bind:this={area}
 			rows="1"
@@ -112,7 +113,7 @@
 		></textarea>
 		{#if highlight && variables?.names}
 			{@const names = variables.names}
-			<div class="carbonwire-url-mirror" bind:this={mirror} aria-hidden="true">{#each segments as s, i (i)}{#if s.variable !== undefined}<mark class={isDefined(names, s.variable) ? "is-defined" : "is-undefined"}>{s.text}</mark>{:else}{s.text}{/if}{/each}</div>
+			<div class="carbonwire-url-mirror" bind:this={mirror} aria-hidden="true">{#each segments as s, i (i)}{#if s.variable !== undefined}<mark class={isDefined(names, s.variable) ? "is-defined" : "is-undefined"} data-variable={s.variable}>{s.text}</mark>{:else}{s.text}{/if}{/each}</div>
 		{/if}
 	</div>
 </div>

@@ -18,6 +18,8 @@ import { Decoration, drawSelection, EditorView, keymap, lineNumbers, MatchDecora
 import { tags } from "@lezer/highlight";
 import { setIcon } from "obsidian";
 import { isDynamicVariable } from "../core/variables";
+import { hideVariable, isEditClick, isLinkModifier, showVariable } from "./variable-hover";
+import type { VariablesContext } from "./variables-context";
 
 export type CodeLanguage = "json" | "text";
 
@@ -164,6 +166,92 @@ const variableHighlighter = ViewPlugin.fromClass(
 	{ decorations: (plugin) => plugin.decorations },
 );
 
+const setHovered = StateEffect.define<{ from: number; to: number } | null>();
+const hoveredMark = Decoration.mark({ class: "carbonwire-var-hovered" });
+
+/** The {{variable}} under the pointer, underlined. */
+const hoveredField = StateField.define<DecorationSet>({
+	create: () => Decoration.none,
+	update(deco, tr) {
+		deco = deco.map(tr.changes);
+		for (const effect of tr.effects) if (effect.is(setHovered)) deco = effect.value ? Decoration.set([hoveredMark.range(effect.value.from, effect.value.to)]) : Decoration.none;
+		return deco;
+	},
+	provide: (field) => EditorView.decorations.from(field),
+});
+
+interface VariableRange {
+	from: number;
+	to: number;
+	name: string;
+	rect: DOMRect;
+}
+
+function variableAt(view: EditorView, x: number, y: number): VariableRange | undefined {
+	if (!view.state.field(variablesField)) return undefined;
+	const pos = view.posAtCoords({ x, y });
+	if (pos === null) return undefined;
+	const line = view.state.doc.lineAt(pos);
+	for (const m of line.text.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)) {
+		const from = line.from + m.index;
+		const to = from + m[0].length;
+		if (pos < from || pos > to) continue;
+		// The nearest position can be at either end while the pointer is past the text.
+		const start = view.coordsAtPos(from, 1);
+		const end = view.coordsAtPos(to, -1);
+		if (!start || !end || y < start.top || y > end.bottom) return undefined;
+		if (start.top === end.top && (x < start.left || x > end.right)) return undefined;
+		return { from, to, name: m[1]!, rect: new DOMRect(start.left, start.top, Math.max(0, end.right - start.left), end.bottom - start.top) };
+	}
+	return undefined;
+}
+
+/** Hovering a {{variable}} shows its value; Ctrl+Click opens where it's set. */
+function variableHover(context: () => VariablesContext | undefined): Extension {
+	let hovered: VariableRange | undefined;
+	const clear = (view: EditorView) => {
+		if (hovered) view.dispatch({ effects: setHovered.of(null) });
+		hovered = undefined;
+		view.contentDOM.classList.remove("is-linking");
+		hideVariable();
+	};
+	return [
+		hoveredField,
+		EditorView.domEventHandlers({
+			mousemove(e, view) {
+				const ctx = context();
+				const v = ctx && variableAt(view, e.clientX, e.clientY);
+				if (!ctx || !v) {
+					clear(view);
+					return false;
+				}
+				if (hovered?.from !== v.from || hovered.to !== v.to) view.dispatch({ effects: setHovered.of(v) });
+				hovered = v;
+				view.contentDOM.classList.toggle("is-linking", isLinkModifier(e));
+				showVariable(ctx, v.name, () => v.rect, `${v.from}:${v.name}`);
+				return false;
+			},
+			mouseleave(_e, view) {
+				clear(view);
+				return false;
+			},
+			keydown(_e, view) {
+				clear(view);
+				return false;
+			},
+			mousedown(e, view) {
+				const ctx = context();
+				const v = ctx && isEditClick(e) ? variableAt(view, e.clientX, e.clientY) : undefined;
+				if (!ctx || !v) return false;
+				e.preventDefault();
+				clear(view);
+				ctx.edit(v.name);
+				return true;
+			},
+		}),
+	];
+}
+
 const commentMatcher = new MatchDecorator({ regexp: /^\s*\/\/.*$/g, decoration: Decoration.mark({ class: "carbonwire-comment" }) });
 
 /* JSON has no comments, so // is added for Mod-/ to toggle; they're removed before sending. Commented lines are greyed. */
@@ -195,6 +283,8 @@ export interface CodeEditorOptions {
 	/** Wrap long lines instead of scrolling sideways. */
 	wrap: boolean;
 	onChange?: (doc: string) => void;
+	/** Values and Ctrl+Click for highlighted {{variables}}. */
+	variables?: () => VariablesContext | undefined;
 }
 
 export interface CodeEditorHandle {
@@ -229,6 +319,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 		extensions.push(EditorState.readOnly.of(true));
 	} else {
 		extensions.push(history(), indentOnInput(), variablesField, variableHighlighter);
+		if (options.variables) extensions.push(variableHover(options.variables));
 		extensions.push(EditorView.updateListener.of((update) => {
 			if (update.docChanged) options.onChange?.(update.state.doc.toString());
 		}));

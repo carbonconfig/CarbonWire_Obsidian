@@ -7,6 +7,7 @@
 	import CodeEditor from "./CodeEditor.svelte";
 	import RequestSettings from "./RequestSettings.svelte";
 	import type { SendResult } from "../core/sender";
+	import type { VariableInfo } from "../core/variables";
 	import type { SendProgress } from "../core/transport/types";
 	import type { EnvironmentEntry } from "../main";
 	import type { RequestLayout } from "../settings";
@@ -80,16 +81,26 @@
 		if (switched) void refreshVariables();
 	}
 
+	let variableInfo = $state.raw<ReadonlyMap<string, VariableInfo> | undefined>();
 	let variableNames = $state.raw<ReadonlySet<string> | undefined>();
 	provideVariables({
 		get names() {
 			return variableNames;
 		},
+		get info() {
+			return variableInfo;
+		},
+		get environment() {
+			return environment?.name;
+		},
+		edit: (name) => controller.editVariable($state.snapshot(request) as HttpRequest, name),
 	});
 
-	/** Reloads which variables are defined, after an environment or collection file changes. */
+	/** Reloads which variables are defined, and their values, after an environment or collection file changes. */
 	export async function refreshVariables() {
-		variableNames = new Set(await controller.variableNames($state.snapshot(request) as HttpRequest));
+		const variables = await controller.variables($state.snapshot(request) as HttpRequest);
+		variableInfo = new Map(variables.map((v) => [v.name, v]));
+		variableNames = new Set(variableInfo.keys());
 	}
 
 	export function setLayout(next: RequestLayout) {

@@ -176,7 +176,9 @@ export class RequestView extends ItemView {
 			openEnvironment: (environmentPath) => void plugin.openFile(environmentPath),
 			setLayout: (layout) => void plugin.setRequestLayout(layout),
 			setWrap: (wrap) => void plugin.setWrapResponseLines(wrap),
-			variableNames: (next) => plugin.variableNames(this.path, next),
+			variables: (next) => plugin.variables(this.path, next),
+			editVariable: (next, name) =>
+				void plugin.variableTarget(this.path, next, name).then((target) => target && plugin.openFile(target.file, { variable: name, create: target.create })),
 			rename: async (name) => {
 				if (!this.path) {
 					if (this.draft) this.draft.name = name;

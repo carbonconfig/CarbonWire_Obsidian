@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import type { HTMLInputAttributes } from "svelte/elements";
 	import { templateSegments } from "../core/variables";
+	import { mirrorHover } from "./variable-hover";
 	import { isDefined, useVariables } from "./variables-context";
 
 	let {
@@ -61,7 +62,7 @@
 	});
 </script>
 
-<div class="carbonwire-var-input {className}" class:is-highlighting={highlight}>
+<div class="carbonwire-var-input {className}" class:is-highlighting={highlight} use:mirrorHover={{ context: highlight ? variables : undefined, mirror: () => mirror }}>
 	<input
 		bind:this={input}
 		type="text"
@@ -78,6 +79,6 @@
 	/>
 	{#if highlight && variables?.names}
 		{@const names = variables.names}
-		<div class="carbonwire-var-mirror" bind:this={mirror} aria-hidden="true"><span>{#each segments as s, i (i)}{#if s.variable !== undefined}<mark class={isDefined(names, s.variable) ? "is-defined" : "is-undefined"}>{s.text}</mark>{:else}{s.text}{/if}{/each}</span></div>
+		<div class="carbonwire-var-mirror" bind:this={mirror} aria-hidden="true"><span>{#each segments as s, i (i)}{#if s.variable !== undefined}<mark class={isDefined(names, s.variable) ? "is-defined" : "is-undefined"} data-variable={s.variable}>{s.text}</mark>{:else}{s.text}{/if}{/each}</span></div>
 	{/if}
 </div>

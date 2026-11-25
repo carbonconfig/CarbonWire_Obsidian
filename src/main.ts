@@ -1,16 +1,17 @@
-import { debounce, Events, FileSystemAdapter, Notice, Plugin, TFile, type TAbstractFile } from "obsidian";
+import { debounce, Events, FileSystemAdapter, Notice, Plugin, TFile, type TAbstractFile, type View } from "obsidian";
 import type { OAuth2Tokens } from "./core/auth/oauth2";
 import type { HttpRequest } from "./core/model";
 import { buildRequest } from "./core/request-builder";
 import { environmentSecretId } from "./core/secrets";
 import type { SendResult } from "./core/sender";
 import { insertKey, type SortOrder } from "./core/storage/order";
-import { dirname, joinPath, movedPath, stem } from "./core/storage/paths";
+import { basename, dirname, joinPath, movedPath, stem } from "./core/storage/paths";
 import { Exclusions } from "./core/storage/exclude";
 import { CollectionStore } from "./core/storage/store";
-import { compare, isYaml, type CollectionNode } from "./core/storage/tree";
+import { COLLECTION_FILE, compare, FOLDER_FILE, isYaml, type CollectionNode } from "./core/storage/tree";
 import type { SendProgress, Transport } from "./core/transport/types";
-import { resolveEnvironment } from "./core/variables";
+import { describeScope, isDynamicVariable, resolveEnvironment, type SourceLayer, type VariableInfo } from "./core/variables";
+import type { VariableFocus } from "./ui/focus-row";
 import { CollectionIndex } from "./obsidian/collection-index";
 import { HistoryStore, type HistoryEntry } from "./obsidian/history";
 import { ItemActions } from "./obsidian/item-actions";
@@ -385,8 +386,10 @@ export default class CarbonWirePlugin extends Plugin {
 	}
 
 	/** Opens a collection file or environment in the matching CarbonWire editor. */
-	async openFile(path: string): Promise<void> {
-		await this.openInView(VIEW_TYPE_SETTINGS, path);
+	/** `focus` picks out a variable's row in a settings tab, adding it when `create` is set. */
+	async openFile(path: string, focus?: VariableFocus): Promise<void> {
+		const view = await this.openInView(VIEW_TYPE_SETTINGS, path);
+		if (focus && view instanceof SettingsView) await view.focusVariable(focus);
 	}
 
 	/**
@@ -535,11 +538,52 @@ export default class CarbonWirePlugin extends Plugin {
 		await exportEnvironment(this, path);
 	}
 
-	/** Names of every variable the request can use with the active environment, for highlighting. */
-	async variableNames(path: string | undefined, request: HttpRequest): Promise<string[]> {
-		const { requestScope } = await import("./core/sender");
-		const scoped = await this.scopeFor(path, request, requestScope).catch(() => undefined);
-		return scoped ? [...scoped.scope.keys()] : [];
+	/** Every variable the request can use with the active environment, its value and where it's set, for highlighting and hovers. */
+	async variables(path: string | undefined, request: HttpRequest): Promise<VariableInfo[]> {
+		const layers = await this.variableLayers(path, request).catch(() => undefined);
+		return layers ? describeScope(layers) : [];
+	}
+
+	/**
+	 * Where Ctrl+Click on a variable goes: the file that sets it, or for one that isn't set, the active
+	 * environment, else globals, where it's added. Undefined for request and dynamic variables.
+	 */
+	async variableTarget(path: string | undefined, request: HttpRequest, name: string): Promise<{ file: string; create: boolean } | undefined> {
+		const info = (await this.variables(path, request)).find((v) => v.name === name);
+		if (info) return info.file ? { file: info.file, create: false } : undefined;
+		if (isDynamicVariable(name)) return undefined;
+		const environment = this.activeEnvironment();
+		const file = environment ? this.environments().find((p) => stem(p) === environment) : this.globalsPath();
+		if (!file) return undefined;
+		if (!environment && !this.store.exists(file)) await this.store.saveDocument(file, { name: "globals", variables: [] });
+		return { file, create: true };
+	}
+
+	/** The scopes {@link scopeFor} layers, with their names and files. */
+	private async variableLayers(path: string | undefined, request: HttpRequest): Promise<SourceLayer[]> {
+		const collection = path === undefined ? undefined : this.collectionFor(path);
+		if (path !== undefined && !collection) return [];
+		const root = collection?.root ?? "";
+		const context = collection && path ? await this.store.loadContext(root, path) : undefined;
+		const name = this.activeEnvironment();
+		const environmentPath = name ? this.environments().find((p) => stem(p) === name) : undefined;
+		const globalsPath = this.globalsPath();
+		const layer = async (file: string | undefined): Promise<Pick<SourceLayer, "variables" | "secrets" | "file">> => {
+			if (!file || !this.store.exists(file)) return {};
+			const environment = await this.store.loadEnvironment(file);
+			const secrets = new Set((environment.variables ?? []).flatMap((v) => ("secret" in v && v.secret && v.name ? [v.name] : [])));
+			return { variables: resolveEnvironment(environment, (variable) => this.secretFor(file, variable)), secrets, file };
+		};
+		const [environment, globals] = await Promise.all([layer(environmentPath), layer(globalsPath)]);
+		const dirs: string[] = [];
+		if (path !== undefined) for (let dir = dirname(path); dir !== root && dir !== ""; dir = dirname(dir)) dirs.unshift(dir);
+		return [
+			{ source: "globals", ...globals },
+			{ source: "collection", variables: context?.chain[0]?.variables, label: collection?.name, file: collection && joinPath(root, COLLECTION_FILE) },
+			{ source: "environment", label: name, ...environment },
+			...(context?.chain.slice(1) ?? []).map((defaults, i): SourceLayer => ({ source: "folder", variables: defaults?.variables, label: basename(dirs[i]!), file: joinPath(dirs[i]!, FOLDER_FILE) })),
+			{ source: "request", variables: request.runtime?.variables },
+		];
 	}
 
 	onDocumentsChanged(callback: () => void): () => void {
@@ -586,13 +630,14 @@ export default class CarbonWirePlugin extends Plugin {
 		return this.oauth2;
 	}
 
-	private async openInView(type: string, path: string): Promise<void> {
+	private async openInView(type: string, path: string): Promise<View> {
 		const { workspace } = this.app;
 		const existing = workspace.getLeavesOfType(type).find((l) => (l.view as RequestView | SettingsView).file === path);
 		const leaf = existing ?? workspace.getLeaf("tab");
 		if (!existing) await leaf.setViewState({ type, state: { file: path }, active: true });
 		await workspace.revealLeaf(leaf);
 		if (leaf.view instanceof RequestView) leaf.view.focusUrl();
+		return leaf.view;
 	}
 
 	/** The console opens below the editor; the cookie manager as a tab. */

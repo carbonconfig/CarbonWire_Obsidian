@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { environmentSecretId } from "../src/core/secrets";
-import { buildScope, interpolate, isDynamicVariable, resolveEnvironment, templateSegments, unresolvedNames, withValue } from "../src/core/variables";
+import { buildScope, describeScope, interpolate, isDynamicVariable, MASK, resolveEnvironment, templateSegments, unresolvedNames, withValue } from "../src/core/variables";
 
 describe("buildScope", () => {
 	it("applies precedence collection < environment < folders < request < runtime", () => {
@@ -100,5 +100,30 @@ describe("templateSegments", () => {
 		expect(templateSegments("plain")).toEqual([{ text: "plain" }]);
 		expect(isDynamicVariable("$guid")).toBe(true);
 		expect(isDynamicVariable("guid")).toBe(false);
+	});
+});
+
+describe("describeScope", () => {
+	it("tells where each value comes from, the innermost scope winning", () => {
+		const info = describeScope([
+			{ source: "globals", variables: [{ name: "host", value: "global.example" }, { name: "g", value: "1" }] },
+			{ source: "environment", label: "Staging", file: (name) => `env/${name}.yml`, variables: [{ name: "host", value: "staging.example" }] },
+			{ source: "folder", label: "Users", file: "api/Users/folder.yml", variables: [{ name: "base", value: "https://{{host}}/v1" }, { name: "off", value: "x", disabled: true }] },
+		]);
+		expect(info).toEqual([
+			{ name: "host", value: "staging.example", source: "environment", label: "Staging", file: "env/host.yml" },
+			{ name: "g", value: "1", source: "globals" },
+			{ name: "base", value: "https://staging.example/v1", source: "folder", label: "Users", file: "api/Users/folder.yml" },
+		]);
+	});
+
+	it("masks secret values, also where other values use them", () => {
+		const info = describeScope([
+			{ source: "environment", secrets: new Set(["token"]), variables: [{ name: "token", value: "s3cr3t" }] },
+			{ source: "collection", variables: [{ name: "auth", value: "Bearer {{token}}" }, { name: "long", value: "x".repeat(600) }] },
+		]);
+		expect(info.find((v) => v.name === "token")).toMatchObject({ value: MASK, secret: true });
+		expect(info.find((v) => v.name === "auth")?.value).toBe(`Bearer ${MASK}`);
+		expect(info.find((v) => v.name === "long")?.value).toHaveLength(501);
 	});
 });

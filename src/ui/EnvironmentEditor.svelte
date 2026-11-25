@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onDestroy, untrack } from "svelte";
+	import { onDestroy, tick, untrack } from "svelte";
 	import type { Environment, SecretVariable, Variable } from "../core/model";
 	import { variableValue, withValue } from "../core/variables";
 	import { icon } from "./actions";
 	import { createAutosave } from "./autosave";
 	import ColorSwatches from "./ColorSwatches.svelte";
+	import { focusRow, type VariableFocus } from "./focus-row";
 
 	type Row = Variable | SecretVariable;
 
@@ -64,6 +65,19 @@
 		}
 	}
 
+	let container: HTMLDivElement;
+
+	/** Picks out a variable, e.g. after Ctrl+Click in a request; a new row is saved once it's edited. */
+	export async function focusVariable({ variable, create }: VariableFocus) {
+		let i = rows.findIndex((r) => r.name === variable);
+		if (i < 0 && create) {
+			env.variables = [...rows, { name: variable, value: "" }];
+			i = rows.length - 1;
+		}
+		await tick();
+		focusRow(container, i);
+	}
+
 	function add() {
 		env.variables = [...rows, { name: "", value: "" }];
 		autosave.schedule();
@@ -115,7 +129,7 @@
 		{/if}
 		Secret values are stored in Obsidian's secret storage on this device and never written to the vault.
 	</p>
-	<div class="carbonwire-kv">
+	<div class="carbonwire-kv" bind:this={container}>
 		{#each rows as row, i (i)}
 			{@const secret = isSecret(row)}
 			<div class="carbonwire-kv-row" class:is-disabled={row.disabled}>

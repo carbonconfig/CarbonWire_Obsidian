@@ -784,6 +784,60 @@ input.carbonwire-title-input:focus {
 .carbonwire-var.is-undefined {
 	color: var(--color-red);
 }
+/* The hovered variable is underlined; with Ctrl or Cmd held it's a link. */
+.carbonwire-var-mirror mark.is-hovered,
+.carbonwire-url-mirror mark.is-hovered,
+.carbonwire-var-hovered {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+.carbonwire-var-input.is-linking > input,
+.carbonwire-url-field.is-linking > textarea,
+.cm-content.is-linking {
+	cursor: pointer;
+}
+.carbonwire-var-tip {
+	position: fixed;
+	z-index: 1000;
+	max-width: min(32rem, calc(100vw - 8px));
+	padding: 6px 8px;
+	border: 1px solid var(--cw-tip-border, var(--background-modifier-border));
+	border-radius: var(--radius-s);
+	background: var(--cw-tip-background, var(--background-secondary));
+	color: var(--cw-tip-foreground, var(--text-normal));
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+	pointer-events: none;
+}
+.carbonwire-var-tip-value {
+	font-family: var(--font-monospace);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 10em;
+	overflow: hidden;
+}
+.carbonwire-var-tip-value.is-empty {
+	font-family: inherit;
+	font-style: italic;
+	color: var(--text-muted);
+}
+.carbonwire-var-tip-source,
+.carbonwire-var-tip-hint {
+	color: var(--text-muted);
+}
+.carbonwire-var-tip-value + .carbonwire-var-tip-source {
+	margin-top: 4px;
+}
+.carbonwire-var-tip-hint {
+	font-size: 0.9em;
+}
+/* A row picked out from a request's Ctrl+Click. */
+.carbonwire-kv-row.is-flashing {
+	outline: 1px solid var(--interactive-accent);
+	outline-offset: 2px;
+	border-radius: var(--radius-s);
+}
+
 /* Keep CodeMirror's syntax colour from overriding the variable colour inside JSON strings. */
 .carbonwire-var.is-defined *,
 .carbonwire-var.is-undefined * {

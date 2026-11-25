@@ -7,6 +7,7 @@ import { refreshTabTitle } from "./request-view";
 import type CarbonWirePlugin from "../main";
 import DefaultsEditor from "./DefaultsEditor.svelte";
 import EnvironmentEditor from "./EnvironmentEditor.svelte";
+import type { VariableFocus } from "./focus-row";
 
 /** The tab title for a collection, folder or environment file; also used before the tab loads. */
 export function settingsTitle(path: string | undefined): string {
@@ -23,6 +24,7 @@ export const VIEW_TYPE_SETTINGS = "carbonwire-settings";
 export class SettingsView extends ItemView {
 	private path?: string;
 	private editor?: Record<string, unknown>;
+	private rendering?: Promise<void>;
 
 	constructor(leaf: WorkspaceLeaf, private readonly plugin: CarbonWirePlugin) {
 		super(leaf);
@@ -52,7 +54,7 @@ export class SettingsView extends ItemView {
 		const file = (state as { file?: unknown } | null)?.file;
 		if (typeof file === "string" && file !== this.path) {
 			this.path = file;
-			await this.render();
+			await (this.rendering = this.render());
 		}
 		await super.setState(state, result);
 		refreshTabTitle(this.leaf);
@@ -61,8 +63,14 @@ export class SettingsView extends ItemView {
 	/** Re-renders, because secret lookups are keyed by the environment's path. */
 	renamed(path: string): void {
 		this.path = path;
-		void this.render();
+		this.rendering = this.render();
 		refreshTabTitle(this.leaf);
+	}
+
+	/** Picks out a variable in the environment or the Variables tab, e.g. after Ctrl+Click in a request. */
+	async focusVariable(focus: VariableFocus): Promise<void> {
+		await this.rendering;
+		await (this.editor as { focusVariable?: (focus: VariableFocus) => Promise<void> } | undefined)?.focusVariable?.(focus);
 	}
 
 	override async onClose(): Promise<void> {

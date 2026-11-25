@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { createCodeEditor, type CodeEditorHandle, type CodeLanguage } from "./codemirror";
+	import { useVariables } from "./variables-context";
 
 	let {
 		value,
@@ -19,6 +20,7 @@
 		onchange?: (value: string) => void;
 	} = $props();
 
+	const context = useVariables();
 	let host: HTMLDivElement;
 	let editor: CodeEditorHandle | undefined;
 	// The last text the editor holds, so prop updates that echo our own edits don't reset the cursor.
@@ -31,6 +33,7 @@
 			language,
 			readOnly,
 			wrap,
+			variables: () => context,
 			onChange: (doc) => {
 				current = doc;
 				onchange?.(doc);

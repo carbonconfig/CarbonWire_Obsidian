@@ -2,6 +2,7 @@ import type { TabView } from "./request-tab";
 import type { HeaderPreset } from "../core/header-presets";
 import type { HttpRequest, HttpRequestHeader } from "../core/model";
 import type { SendResult } from "../core/sender";
+import type { VariableInfo } from "../core/variables";
 import type { SendProgress } from "../core/transport/types";
 import type { RequestLayout } from "../settings";
 
@@ -14,8 +15,10 @@ export interface RequestController {
 	openEnvironment(path: string): void;
 	setLayout(layout: RequestLayout): void;
 	setWrap(wrap: boolean): void;
-	/** Variables defined for this request with the active environment. */
-	variableNames(request: HttpRequest): Promise<string[]>;
+	/** Variables defined for this request with the active environment, with their values and where they're set. */
+	variables(request: HttpRequest): Promise<VariableInfo[]>;
+	/** Opens where the variable is set, or adds it to the active environment when it isn't. */
+	editVariable(request: HttpRequest, name: string): void;
 	/** Renames the request; resolves to the name actually used, or undefined if it failed. */
 	rename(name: string): Promise<string | undefined>;
 	/** Copies the request, fully resolved, as a cURL command. */
