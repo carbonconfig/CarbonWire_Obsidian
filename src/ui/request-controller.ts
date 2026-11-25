@@ -36,6 +36,8 @@ export interface RequestController {
 	saveBody(body: Uint8Array, contentType: string, name: string): Promise<void>;
 	/** Asks for a name; resolves to undefined if cancelled. */
 	askName(title: string, value: string): Promise<string | undefined>;
+	/** Keeps a variable in memory until restart, as the runtime scope does. */
+	setRuntimeVariable(name: string, value: string): void;
 	/** The tabs shown changed; kept with the tab. */
 	viewChanged?(view: TabView): void;
 }

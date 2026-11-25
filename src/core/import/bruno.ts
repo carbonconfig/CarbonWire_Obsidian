@@ -203,7 +203,14 @@ function convertRequest(file: BruFile, fallbackName: string, warnings: Warnings)
 	const bodyMode = get(file, methodBlock, "body") || "none";
 	const scripts = convertScripts(file, warnings);
 	const variables = entries(file, "vars:pre-request").map((e) => compact({ name: e.name, value: e.value, disabled: e.disabled ? true : undefined }));
-	if (file.dict.has("assert")) warnings.add("Assertions are not supported yet and were skipped.");
+	// Bruno writes checks as "res.status: eq 200", and post-response variables as "token: res.body.token", kept for the session.
+	const assertions = entries(file, "assert").map((e) => {
+		const [operator = "eq", ...rest] = e.value.trim().split(/\s+/);
+		return compact({ expression: e.name, operator, value: rest.length ? rest.join(" ") : undefined, disabled: e.disabled ? true : undefined });
+	});
+	const actions = entries(file, "vars:post-response").map((e) =>
+		compact({ type: "set-variable" as const, phase: "after-response" as const, selector: { expression: e.value, method: "jsonq" as const }, variable: { name: e.name, scope: "runtime" as const }, disabled: e.disabled ? true : undefined }),
+	);
 	if (isGraphql) warnings.add("GraphQL bodies were converted to JSON POST bodies.");
 
 	const request: HttpRequest = compact({
@@ -216,7 +223,7 @@ function convertRequest(file: BruFile, fallbackName: string, warnings: Warnings)
 			body: isGraphql ? graphqlBody(file, headers) : convertBody(bodyMode, file, warnings),
 			auth: convertAuth(get(file, methodBlock, "auth") || "none", file, warnings),
 		},
-		runtime: scripts || variables.length > 0 ? compact({ scripts, variables }) : undefined,
+		runtime: scripts || variables.length > 0 || assertions.length > 0 || actions.length > 0 ? compact({ scripts, variables, assertions, actions }) : undefined,
 		settings: get(file, "settings", "encodeUrl") ? { encodeUrl: get(file, "settings", "encodeUrl") === "true" } : undefined,
 		docs: file.text.get("docs") || undefined,
 	});

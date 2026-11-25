@@ -312,6 +312,19 @@ vars:secret [
 		expect(request(users.items, 1).http?.auth).toBeUndefined();
 	});
 
+	it("keeps checks and post-response variables, so they run in CarbonWire", () => {
+		const result = importBrunoFolder([
+			{ path: "api/bruno.json", text: '{"name":"Api","version":"1","type":"collection"}' },
+			{ path: "api/login.bru", text: "meta {\n  name: Login\n}\n\npost {\n  url: {{base}}/login\n}\n\nassert {\n  res.status: eq 200\n  res.body.token: isDefined\n  ~res.body.role: eq \"admin\"\n}\n\nvars:post-response {\n  token: res.body.token\n}\n" },
+		]);
+		const login = request(first(result).items);
+		expect(login.runtime).toEqual({
+			assertions: [{ expression: "res.status", operator: "eq", value: "200" }, { expression: "res.body.token", operator: "isDefined" }, { expression: "res.body.role", operator: "eq", value: '"admin"', disabled: true }],
+			actions: [{ type: "set-variable", phase: "after-response", selector: { expression: "res.body.token", method: "jsonq" }, variable: { name: "token", scope: "runtime" } }],
+		});
+		expect(result.warnings.some((w) => w.includes("Assertions"))).toBe(false);
+	});
+
 	it("requires bruno.json", () => {
 		expect(() => importBrunoFolder([{ path: "x/a.bru", text: "" }])).toThrow(ImportError);
 	});

@@ -941,6 +941,61 @@ input.carbonwire-title-input:focus {
 	font-family: var(--font-monospace);
 }
 
+/* Tests: checks on the response, and variables taken from it. */
+.carbonwire-tests-editor h4:first-child {
+	margin-top: 0;
+}
+.carbonwire-test-row select.dropdown {
+	flex: 0 0 auto;
+	max-width: 11rem;
+}
+.carbonwire-test-expression,
+.carbonwire-test-name {
+	flex: 1 1 0;
+	min-width: 0;
+	font-family: var(--font-monospace);
+}
+.carbonwire-test-name {
+	flex: 0 0 25%;
+}
+.carbonwire-test-value {
+	flex: 1 1 0;
+	min-width: 0;
+}
+.carbonwire-response-bar .carbonwire-tabs button.is-failed .carbonwire-count {
+	color: var(--text-error);
+}
+.carbonwire-response-bar .carbonwire-tabs button.is-passed .carbonwire-count {
+	color: var(--color-green);
+}
+.carbonwire-test-results ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.carbonwire-test-results li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--size-4-2);
+	padding: var(--size-2-2) 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.carbonwire-test-mark {
+	flex: 0 0 1em;
+	font-weight: var(--font-semibold, 600);
+}
+.carbonwire-test-results li.is-passed .carbonwire-test-mark {
+	color: var(--color-green);
+}
+.carbonwire-test-results li.is-failed .carbonwire-test-mark {
+	color: var(--text-error);
+}
+.carbonwire-test-detail {
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+}
+
 /* A row picked out from a request's Ctrl+Click. */
 .carbonwire-kv-row.is-flashing {
 	outline: 1px solid var(--interactive-accent);

@@ -67,6 +67,17 @@ export class SettingsView extends ItemView {
 		refreshTabTitle(this.leaf);
 	}
 
+	/** Saves edits not yet written, before something else writes to the file. */
+	async flush(): Promise<void> {
+		await this.rendering;
+		await (this.editor as { flush?: () => Promise<void> } | undefined)?.flush?.();
+	}
+
+	/** Shows the file again after something else wrote to it. */
+	reload(): void {
+		this.rendering = this.render();
+	}
+
 	/** Picks out a variable in the environment or the Variables tab, e.g. after Ctrl+Click in a request. */
 	async focusVariable(focus: VariableFocus): Promise<void> {
 		await this.rendering;

@@ -32,6 +32,8 @@ function sourceText(info: VariableInfo): string {
 			return `From the ${info.label ?? ""} folder`;
 		case "request":
 			return "From this request's file";
+		case "runtime":
+			return "Set by a response; kept until CarbonWire restarts";
 	}
 }
 
@@ -43,7 +45,7 @@ function render(context: VariablesContext, name: string): HTMLDivElement {
 		if (info.value === "") line("carbonwire-var-tip-value is-empty", "Empty");
 		else line("carbonwire-var-tip-value", info.value);
 		line("carbonwire-var-tip-source", sourceText(info) + (info.secret ? ", kept secret" : ""));
-		if (info.source !== "request") line("carbonwire-var-tip-hint", `${MODIFIER}+Click to edit`);
+		if (info.source !== "request" && info.source !== "runtime") line("carbonwire-var-tip-hint", `${MODIFIER}+Click to edit`);
 	} else if (isDynamicVariable(name)) {
 		line("carbonwire-var-tip-source", "Dynamic: a new value each time the request is sent");
 	} else {

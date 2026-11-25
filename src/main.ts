@@ -1,6 +1,8 @@
 import { debounce, Events, FileSystemAdapter, Notice, Plugin, TFile, type TAbstractFile, type View } from "obsidian";
 import type { OAuth2Tokens } from "./core/auth/oauth2";
-import type { HttpRequest } from "./core/model";
+import type { Folder, HttpRequest, OpenCollection, SecretVariable, Variable } from "./core/model";
+import type { ActionVariableScope } from "@opencollection/types/common/actions";
+import type { AfterResponse } from "./core/after-response";
 import { buildRequest } from "./core/request-builder";
 import { environmentSecretId } from "./core/secrets";
 import type { SendResult } from "./core/sender";
@@ -10,7 +12,7 @@ import { Exclusions } from "./core/storage/exclude";
 import { CollectionStore } from "./core/storage/store";
 import { COLLECTION_FILE, compare, FOLDER_FILE, isYaml, type CollectionNode } from "./core/storage/tree";
 import type { SendProgress, Transport } from "./core/transport/types";
-import { describeScope, isDynamicVariable, resolveEnvironment, type SourceLayer, type VariableInfo } from "./core/variables";
+import { describeScope, interpolate, isDynamicVariable, resolveEnvironment, withValue, type Scope, type SourceLayer, type VariableInfo } from "./core/variables";
 import type { VariableFocus } from "./ui/focus-row";
 import { CollectionIndex } from "./obsidian/collection-index";
 import { HistoryStore, type HistoryEntry } from "./obsidian/history";
@@ -40,6 +42,13 @@ export interface EnvironmentEntry {
 	color?: string;
 }
 
+/** Sets a variable's value, keeping its type or selected variant, or adds it at the end. */
+function upsertVariable<T extends Variable | SecretVariable>(variables: readonly T[], name: string, value: string): (T | Variable)[] {
+	const at = variables.findIndex((v) => v.name === name);
+	if (at < 0) return [...variables, { name, value }];
+	return variables.map((v, i) => (i === at ? withValue(v as Variable, value) : v));
+}
+
 export default class CarbonWirePlugin extends Plugin {
 	override settings: CarbonWireSettings = structuredClone(DEFAULT_SETTINGS);
 	store!: CollectionStore;
@@ -55,6 +64,8 @@ export default class CarbonWirePlugin extends Plugin {
 	private transport?: Transport;
 	private oauth2?: OAuth2Tokens;
 	private excludedCache?: { text: string; exclusions: Exclusions };
+	/** Variables responses set with the runtime scope; kept in memory until Obsidian closes or the plugin reloads. */
+	readonly runtime = new Map<string, string>();
 
 	override async onload(): Promise<void> {
 		await this.loadSettings();
@@ -431,7 +442,8 @@ export default class CarbonWirePlugin extends Plugin {
 			});
 			record({ response: result.response });
 			this.log(time, name, path, request, result);
-			return result;
+			const tests = await this.afterResponse(path, request, result, scope);
+			return tests ? { ...result, tests } : result;
 		} catch (e) {
 			const message = e instanceof Error ? e.message : String(e);
 			if (!signal.aborted) {
@@ -588,7 +600,77 @@ export default class CarbonWirePlugin extends Plugin {
 			{ source: "environment", label: name, ...environment },
 			...(context?.chain.slice(1) ?? []).map((defaults, i): SourceLayer => ({ source: "folder", variables: defaults?.variables, label: basename(dirs[i]!), file: joinPath(dirs[i]!, FOLDER_FILE) })),
 			{ source: "request", variables: request.runtime?.variables },
+			{ source: "runtime", variables: [...this.runtime].map(([name, value]) => ({ name, value })) },
 		];
+	}
+
+	/** A runtime variable set by hand, such as from the JSON tree's menu; request tabs show it straight away. */
+	setRuntimeVariable(name: string, value: string): void {
+		this.runtime.set(name, value);
+		this.events.trigger("documents-changed");
+	}
+
+	/** Runs the request's checks and keeps the variables it takes from the response. */
+	private async afterResponse(path: string | undefined, request: HttpRequest, result: SendResult, scope: Scope): Promise<AfterResponse | undefined> {
+		const runtime = request.runtime;
+		if (!runtime?.assertions?.length && !runtime?.actions?.length) return undefined;
+		const { readResponse, runActions, runChecks } = await import("./core/after-response");
+		const res = readResponse(result.response);
+		const checks = runChecks(res, runtime.assertions, (text) => interpolate(text, scope));
+		const variables = runActions(res, runtime.actions);
+		let changed = false;
+		for (const v of variables) {
+			if (v.value === undefined) continue;
+			try {
+				await this.setVariable(path, v.scope, v.name, v.value);
+				changed = true;
+			} catch (e) {
+				v.error = e instanceof Error ? e.message : String(e);
+			}
+		}
+		if (changed) this.events.trigger("documents-changed");
+		return { checks, variables };
+	}
+
+	/**
+	 * Keeps a variable a response set: in memory for the runtime scope, else in the environment's,
+	 * collection's or folder's file, or secret storage for a secret. The request scope is left to its tab.
+	 */
+	async setVariable(path: string | undefined, scope: ActionVariableScope, name: string, value: string): Promise<void> {
+		if (scope === "runtime") {
+			this.runtime.set(name, value);
+			return;
+		}
+		if (scope === "request") return;
+		if (scope === "environment") {
+			const environment = this.activeEnvironment();
+			const file = environment ? this.environments().find((p) => stem(p) === environment) : undefined;
+			if (!file) throw new Error("No environment is active, so it wasn't kept.");
+			return this.writeVariable(file, name, value);
+		}
+		const collection = path === undefined ? undefined : this.collectionFor(path);
+		if (!collection || path === undefined) throw new Error("This request isn't saved in a collection.");
+		if (scope === "collection") return this.writeVariable(joinPath(collection.root, COLLECTION_FILE), name, value);
+		const dir = dirname(path);
+		if (dir === collection.root) throw new Error("This request isn't in a folder.");
+		return this.writeVariable(joinPath(dir, FOLDER_FILE), name, value);
+	}
+
+	/** An open editor of the file saves its edits first, and shows the new value after. */
+	private async writeVariable(file: string, name: string, value: string): Promise<void> {
+		const views = this.app.workspace.getLeavesOfType(VIEW_TYPE_SETTINGS).map((l) => l.view).filter((v): v is SettingsView => v instanceof SettingsView && v.file === file);
+		for (const view of views) await view.flush();
+		if (basename(file) !== COLLECTION_FILE && basename(file) !== FOLDER_FILE) {
+			const environment = await this.store.loadEnvironment(file);
+			const existing = environment.variables?.find((v) => v.name === name);
+			if (existing && "secret" in existing && existing.secret) this.setSecretFor(file, name, value);
+			else await this.store.saveEdited(file, { ...environment, variables: upsertVariable(environment.variables ?? [], name, value) });
+		} else {
+			const doc = this.store.exists(file) ? await this.store.loadDocument<OpenCollection | Folder>(file) : ({ info: { name: basename(dirname(file)), type: "folder" } } as Folder);
+			const defaults = doc.request ?? {};
+			await this.store.saveEdited(file, { ...doc, request: { ...defaults, variables: upsertVariable(defaults.variables ?? [], name, value) } });
+		}
+		for (const view of views) view.reload();
 	}
 
 	onDocumentsChanged(callback: () => void): () => void {
@@ -608,7 +690,7 @@ export default class CarbonWirePlugin extends Plugin {
 		const variables = resolveEnvironment(environment, (variable) => (environmentPath ? this.secretFor(environmentPath, variable) : null));
 		const globalsPath = this.globalsPath();
 		const globals = this.store.exists(globalsPath) ? resolveEnvironment(await this.store.loadEnvironment(globalsPath), (variable) => this.secretFor(globalsPath, variable)) : undefined;
-		return { root, context, scope: requestScope(context, request, variables, globals) };
+		return { root, context, scope: requestScope(context, request, variables, globals, this.runtime) };
 	}
 
 	/** Node's http stack loads on first send rather than at startup. */

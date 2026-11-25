@@ -1,6 +1,6 @@
 import type { HttpRequestDetails } from "../core/model";
 
-export type RequestTab = "params" | "headers" | "body" | "auth" | "settings" | "code" | "examples";
+export type RequestTab = "params" | "headers" | "body" | "auth" | "tests" | "settings" | "code" | "examples";
 
 /** The tab a request opens on: the first of Body, Params, Auth and Headers that has something in it. */
 export function initialTab(http: HttpRequestDetails | undefined): RequestTab {
@@ -18,7 +18,7 @@ function hasBody(body: HttpRequestDetails["body"]): boolean {
 }
 
 export interface ResponseView {
-	tab: "body" | "headers" | "cookies" | "timeline";
+	tab: "body" | "headers" | "cookies" | "timeline" | "tests";
 	view: "text" | "tree" | "preview";
 	pretty: boolean;
 	filter: string;

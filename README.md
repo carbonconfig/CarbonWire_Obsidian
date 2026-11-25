@@ -47,6 +47,9 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 - HTML preview, images and PDFs right in the panel
 - Headers, cookies, a timing breakdown (DNS, connect, TLS, waiting and download), and the connection: address, TLS version, cipher and the certificate chain
 - Save a response body to a file, or keep it with the request as a saved example
+- Checks without code in a request's **Tests** tab, such as `res.status` equals 200 or `$.items` isn't empty, with pass or fail in the response's Tests tab
+- Take values from a response into variables, such as a login's `$.token`, kept until restart or in the environment, collection, folder or request. Right-click a value in the JSON tree to start one.
+- Both are stored as OpenCollection assertions and actions, so they carry over to and from Bruno
 
 **Collections and environments**
 - Collections and folders share variables, headers, auth and settings with every request inside them, and can have docs, written in Markdown

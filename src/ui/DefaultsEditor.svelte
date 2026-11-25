@@ -35,6 +35,11 @@
 
 	onDestroy(() => void autosave.flush());
 
+	/** Saves edits not yet written, such as before a response writes a variable to this file. */
+	export function flush(): Promise<void> {
+		return autosave.flush();
+	}
+
 	function setVariables(rows: Variable[]) {
 		defaults.variables = rows;
 		autosave.schedule();

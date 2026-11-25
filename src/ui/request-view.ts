@@ -216,6 +216,7 @@ export class RequestView extends ItemView {
 			},
 			saveBody: async (body, contentType, name) => saveDownload(`${safeFileName(name) || "response"}${extensionFor(contentType)}`, body, contentType),
 			askName: (title, value) => promptText(this.app, title, "", value, "Save"),
+			setRuntimeVariable: (name, value) => plugin.setRuntimeVariable(name, value),
 			viewChanged: (view) => {
 				this.tabView = view;
 				this.app.workspace.requestSaveLayout();

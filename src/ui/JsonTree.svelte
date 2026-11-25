@@ -5,7 +5,7 @@
 	import { icon } from "./actions";
 	import { childPath, flattenJson, type JsonRow } from "./json-tree";
 
-	let { value }: { value: unknown } = $props();
+	let { value, onSaveVariable }: { value: unknown; /** Offered in a row's menu: keep the row's value as a variable. */ onSaveVariable?: (path: string, value: string) => void } = $props();
 
 	/* Rows have a fixed height so only the ones in view need to exist in the DOM. */
 	const ROW_HEIGHT = 22;
@@ -54,6 +54,10 @@
 		const text = typeof row.value === "string" ? row.value : JSON.stringify(row.value, null, 2);
 		menu.addItem((item) => item.setTitle("Copy value").setIcon("copy").onClick(() => void navigator.clipboard.writeText(text)));
 		menu.addItem((item) => item.setTitle("Copy path").setIcon("route").onClick(() => void navigator.clipboard.writeText(row.path)));
+		if (onSaveVariable) {
+			const compact = typeof row.value === "string" ? row.value : JSON.stringify(row.value);
+			menu.addItem((item) => item.setTitle("Save as variable…").setIcon("variable").onClick(() => onSaveVariable(row.path, compact)));
+		}
 		if (row.size !== undefined) {
 			menu.addSeparator();
 			menu.addItem((item) => item.setTitle("Expand all").setIcon("chevrons-up-down").onClick(() => expandAll(row)));

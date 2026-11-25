@@ -71,7 +71,7 @@ export function buildScope(layers: ScopeLayers): Scope {
 	return scope;
 }
 
-export type VariableSource = "globals" | "collection" | "environment" | "folder" | "request";
+export type VariableSource = "globals" | "collection" | "environment" | "folder" | "request" | "runtime";
 
 /** One scope's variables, for {@link describeScope}. */
 export interface SourceLayer {

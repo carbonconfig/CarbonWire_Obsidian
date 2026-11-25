@@ -1,3 +1,4 @@
+import type { AfterResponse } from "./after-response";
 import { digestAuthorization, parseDigestChallenge } from "./auth/digest";
 import { tokenPlacement, type OAuth2Tokens } from "./auth/oauth2";
 import { encodeBody, type FileReader } from "./body";
@@ -36,16 +37,22 @@ export interface SendResult {
 	sent: SentRequest;
 	response: TransportResponse;
 	warnings: string[];
+	/** The request's checks and the variables it takes from the response, when it has any. */
+	tests?: AfterResponse;
 }
 
-/** `environment` and `globals` are resolved with resolveEnvironment, secrets included. */
-export function requestScope(context: RequestContext, request: HttpRequest, environment: readonly Variable[], globals?: readonly Variable[]): Scope {
+/**
+ * `environment` and `globals` are resolved with resolveEnvironment, secrets included; `runtime` holds
+ * variables earlier responses set, the innermost scope.
+ */
+export function requestScope(context: RequestContext, request: HttpRequest, environment: readonly Variable[], globals?: readonly Variable[], runtime?: ReadonlyMap<string, string>): Scope {
 	return buildScope({
 		globals,
 		collection: context.chain[0]?.variables,
 		environment,
 		folders: context.chain.slice(1).map((d) => d?.variables),
 		request: request.runtime?.variables,
+		runtime,
 	});
 }
 

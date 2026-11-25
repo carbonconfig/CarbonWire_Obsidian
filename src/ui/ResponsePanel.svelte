@@ -13,6 +13,7 @@
 	import JsonTree from "./JsonTree.svelte";
 	import PdfView from "./PdfView.svelte";
 	import { parseSetCookie } from "../core/cookies";
+	import { OPERATORS } from "../core/after-response";
 
 	let {
 		result,
@@ -25,6 +26,7 @@
 		example,
 		onSaveBody,
 		onSaveExample,
+		onSaveVariable,
 		initialView,
 		onviewchange,
 		cancelledAfter,
@@ -43,6 +45,8 @@
 		example?: string;
 		onSaveBody?: () => void;
 		onSaveExample?: () => void;
+		/** From the JSON tree's menu: keep a value as a variable. */
+		onSaveVariable?: (path: string, value: string) => void;
 		initialView?: ResponseView;
 		onviewchange?: (view: ResponseView) => void;
 		/** Set when the last send was cancelled, to how long it had run. */
@@ -160,6 +164,13 @@
 
 	const shortDate = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
+	/* Example responses have no checks; a reopened tab shows them again only after the next send. */
+	const tests = $derived(result?.tests);
+	const testsFailed = $derived(tests !== undefined && (tests.checks.some((c) => !c.passed) || tests.variables.some((v) => v.error !== undefined)));
+	const operatorLabel = (id: string) => OPERATORS.find((o) => o.id === id)?.label ?? id;
+	const SCOPE_LABELS: Record<string, string> = { runtime: "Until restart", environment: "Active environment", collection: "Collection", folder: "Folder", request: "This request" };
+	const scopeLabel = (scope: string) => SCOPE_LABELS[scope] ?? scope;
+
 	const cookies = $derived.by(() => {
 		if (!shown) return [];
 		let url: URL;
@@ -243,6 +254,11 @@
 					<button class:is-active={tab === "headers"} onclick={() => (tab = "headers")}>Headers <span class="carbonwire-count">{shown.headers.length}</span></button>
 					{#if cookies.length > 0}<button class:is-active={tab === "cookies"} onclick={() => (tab = "cookies")}>Cookies <span class="carbonwire-count">{cookies.length}</span></button>{/if}
 					{#if example === undefined}<button class:is-active={tab === "timeline"} onclick={() => (tab = "timeline")}>Timeline</button>{/if}
+					{#if tests && example === undefined}
+						<button class:is-active={tab === "tests"} class={testsFailed ? "is-failed" : "is-passed"} onclick={() => (tab = "tests")}>
+							Tests <span class="carbonwire-count">{tests.checks.length ? `${tests.checks.filter((c) => c.passed).length}/${tests.checks.length}` : tests.variables.length}</span>
+						</button>
+					{/if}
 				</div>
 				<div class="carbonwire-response-meta">
 					<span class="carbonwire-status {statusClass(shown.status)}">{shown.status} {shown.statusText}</span>
@@ -310,7 +326,7 @@
 						{#key shown}<PdfView data={shown.body} />{/key}
 					{:else if shownView === "tree" && tree}
 						{#if "value" in tree}
-							{#key tree}<JsonTree value={tree.value} />{/key}
+							{#key tree}<JsonTree value={tree.value} onSaveVariable={example === undefined ? onSaveVariable : undefined} />{/key}
 						{:else}
 							<div class="carbonwire-muted carbonwire-response-placeholder">{tree.message}</div>
 						{/if}
@@ -341,6 +357,34 @@
 							{/each}
 						</tbody>
 					</table>
+				{:else if tab === "tests" && tests}
+					<div class="carbonwire-test-results">
+						{#if tests.checks.length}
+							<h4>Checks</h4>
+							<ul>
+								{#each tests.checks as c, i (i)}
+									<li class={c.passed ? "is-passed" : "is-failed"}>
+										<span class="carbonwire-test-mark" aria-label={c.passed ? "Passed" : "Failed"}>{c.passed ? "✓" : "✗"}</span>
+										<span class="carbonwire-mono">{c.expression} {operatorLabel(c.operator)}{c.value !== undefined ? ` ${c.value}` : ""}</span>
+										{#if c.error}<span class="carbonwire-test-detail">{c.error}</span>
+										{:else if !c.passed}<span class="carbonwire-test-detail">{c.actual === undefined ? "Nothing there" : `Got ${c.actual}`}</span>{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if tests.variables.length}
+							<h4>Variables</h4>
+							<ul>
+								{#each tests.variables as v, i (i)}
+									<li class={v.error ? "is-failed" : "is-passed"}>
+										<span class="carbonwire-test-mark" aria-label={v.error ? "Not set" : "Set"}>{v.error ? "✗" : "✓"}</span>
+										<span class="carbonwire-mono">{v.name}</span>
+										<span class="carbonwire-test-detail">{v.error ?? `${scopeLabel(v.scope)}: ${v.value && v.value.length > 120 ? `${v.value.slice(0, 120)}…` : v.value}`}</span>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
 				{:else if tab === "headers"}
 					<table class="carbonwire-table">
 						<tbody>

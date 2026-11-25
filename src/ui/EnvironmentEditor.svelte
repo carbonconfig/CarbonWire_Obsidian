@@ -33,6 +33,11 @@
 
 	onDestroy(() => void autosave.flush());
 
+	/** Saves edits not yet written, such as before a response writes a variable to this file. */
+	export function flush(): Promise<void> {
+		return autosave.flush();
+	}
+
 	const isSecret = (row: Row): row is SecretVariable => "secret" in row && row.secret;
 
 	async function renameEnvironment(input: HTMLInputElement) {
