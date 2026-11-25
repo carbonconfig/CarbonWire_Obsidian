@@ -14,6 +14,8 @@ export interface IndexOptions {
 	collectionOrder(): readonly string[];
 	environmentsFolder(): string;
 	environments(): string[];
+	/** Left out of the trees, such as test fixtures. */
+	excluded(path: string): boolean;
 	changed(collections: CollectionNode[]): void;
 }
 
@@ -52,7 +54,8 @@ export class CollectionIndex {
 		if (!this.manual) {
 			this.restoreCache();
 			const meta = new Map([...this.meta].map(([path, entry]) => [path, entry[2]]));
-			this.manual = buildCollections(this.app.vault.getFiles().map((f) => f.path), this.app.vault.getName(), meta);
+			const paths = this.app.vault.getFiles().flatMap((f) => (this.options.excluded(f.path) ? [] : [f.path]));
+			this.manual = buildCollections(paths, this.app.vault.getName(), meta);
 			this.loadMeta();
 		}
 		return this.manual;

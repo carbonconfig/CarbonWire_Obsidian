@@ -6,6 +6,7 @@ import { environmentSecretId } from "./core/secrets";
 import type { SendResult } from "./core/sender";
 import { insertKey, type SortOrder } from "./core/storage/order";
 import { dirname, joinPath, movedPath, stem } from "./core/storage/paths";
+import { Exclusions } from "./core/storage/exclude";
 import { CollectionStore } from "./core/storage/store";
 import { compare, isYaml, type CollectionNode } from "./core/storage/tree";
 import type { SendProgress, Transport } from "./core/transport/types";
@@ -52,6 +53,7 @@ export default class CarbonWirePlugin extends Plugin {
 	private focusedRoot?: string;
 	private transport?: Transport;
 	private oauth2?: OAuth2Tokens;
+	private excludedCache?: { text: string; exclusions: Exclusions };
 
 	override async onload(): Promise<void> {
 		await this.loadSettings();
@@ -62,6 +64,7 @@ export default class CarbonWirePlugin extends Plugin {
 			collectionOrder: () => this.settings.collectionOrder,
 			environmentsFolder: () => this.environmentsFolder(),
 			environments: () => this.environments(),
+			excluded: (path) => this.exclusions().excludes(path),
 			changed: (collections) => this.events.trigger("collections-changed", collections),
 		});
 		const adapter = this.app.vault.adapter;
@@ -228,6 +231,17 @@ export default class CarbonWirePlugin extends Plugin {
 
 	collectionsFolder(): string {
 		return this.settings.collectionsFolder;
+	}
+
+	/** The vault already leaves out folders whose names start with a dot. */
+	private exclusions(): Exclusions {
+		const text = this.settings.excludedFolders;
+		if (this.excludedCache?.text !== text) this.excludedCache = { text, exclusions: new Exclusions(text.split("\n")) };
+		return this.excludedCache.exclusions;
+	}
+
+	exclusionsChanged(): void {
+		this.index.rebuild();
 	}
 
 	environmentsFolder(): string {

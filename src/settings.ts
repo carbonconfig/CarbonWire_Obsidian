@@ -16,6 +16,8 @@ export interface CarbonWireSettings {
 	collectionsFolder: string;
 	/** Environments are shared by every collection and live in this folder. */
 	environmentsFolder: string;
+	/** Folders and files never searched for collections: glob patterns relative to the vault, one per line. */
+	excludedFolders: string;
 	/** Active environment name; empty means none. */
 	activeEnvironment: string;
 	maxResponseMB: number;
@@ -46,6 +48,7 @@ export interface CarbonWireSettings {
 export const DEFAULT_SETTINGS: CarbonWireSettings = {
 	collectionsFolder: "API Collections",
 	environmentsFolder: "API Collections/Environments",
+	excludedFolders: "",
 	activeEnvironment: "",
 	maxResponseMB: 20,
 	historySize: 100,
@@ -66,6 +69,7 @@ export const DEFAULT_SETTINGS: CarbonWireSettings = {
 const TEXT = {
 	folder: ["Collections folder", "New collections are created in this folder. Existing collections are found anywhere in the vault."],
 	environments: ["Environments folder", "Environments are shared by every collection. The active one overrides collection variables."],
+	excluded: ["Excluded folders", "Never searched for collections. One per line, relative to the vault: a folder such as Archive/Old APIs, or a pattern such as **/fixtures."],
 	maxResponse: ["Response size limit", "In megabytes. Larger response bodies are truncated in memory; the full size is still reported."],
 	wrap: ["Wrap long lines in responses", "Otherwise long lines scroll sideways. Also toggled from the response toolbar."],
 	history: ["History size", "How many recent requests to keep, on this device only. Set to 0 to turn history off."],
@@ -93,6 +97,7 @@ export class CarbonWireSettingTab extends PluginSettingTab {
 		return [
 			{ name: TEXT.folder[0], desc: TEXT.folder[1], control: { type: "folder", key: "collectionsFolder", includeRoot: true, placeholder: "Vault root" } },
 			{ name: TEXT.environments[0], desc: TEXT.environments[1], control: { type: "folder", key: "environmentsFolder", placeholder: DEFAULT_SETTINGS.environmentsFolder } },
+			{ name: TEXT.excluded[0], desc: TEXT.excluded[1], control: { type: "textarea", key: "excludedFolders", rows: 2, placeholder: "**/fixtures" } },
 			{ name: TEXT.maxResponse[0], desc: TEXT.maxResponse[1], control: { type: "number", key: "maxResponseMB", min: 1, step: 1 } },
 			{ name: TEXT.history[0], desc: TEXT.history[1], control: { type: "number", key: "historySize", min: 0, step: 10 } },
 			{ name: TEXT.wrap[0], desc: TEXT.wrap[1], control: { type: "toggle", key: "wrapResponseLines" } },
@@ -111,6 +116,13 @@ export class CarbonWireSettingTab extends PluginSettingTab {
 				],
 			},
 		];
+	}
+
+	/** Saves through the plugin, so a change to the excluded folders redraws the tree. */
+	override async setControlValue(key: string, value: unknown): Promise<void> {
+		(this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
+		await this.plugin.saveSettings();
+		if (key === "excludedFolders") this.plugin.exclusionsChanged();
 	}
 
 	private async setProxyPassword(): Promise<void> {
@@ -148,6 +160,13 @@ export class CarbonWireSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName(TEXT.environments[0]).setDesc(TEXT.environments[1]).addText((text) =>
 			text.setPlaceholder(DEFAULT_SETTINGS.environmentsFolder).setValue(settings.environmentsFolder).onChange(async (value) => {
 				settings.environmentsFolder = value.trim() ? normalizePath(value) : DEFAULT_SETTINGS.environmentsFolder;
+				await this.plugin.saveSettings();
+			}),
+		);
+		new Setting(containerEl).setName(TEXT.excluded[0]).setDesc(TEXT.excluded[1]).addTextArea((text) =>
+			text.setPlaceholder("**/fixtures").setValue(settings.excludedFolders).onChange(async (value) => {
+				settings.excludedFolders = value;
+				this.plugin.exclusionsChanged();
 				await this.plugin.saveSettings();
 			}),
 		);
