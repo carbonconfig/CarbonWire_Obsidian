@@ -2,7 +2,7 @@ import { Modal, Notice, Setting, type App } from "obsidian";
 import { importBrunoFolder } from "../core/import/bruno";
 import { importText } from "../core/import/detect";
 import { countItems, type ImportedEnvironment, type ImportResult } from "../core/import/model";
-import { importPostmanExport } from "../core/import/postman-export";
+import { importPostmanExport, isAccountExport, selectFromExport } from "../core/import/postman-export";
 import { unzip } from "../core/import/unzip";
 import { writeImport, type EnvironmentResolution, type ImportTarget } from "../core/import/writer";
 import { basename, joinPath, stem } from "../core/storage/paths";
@@ -116,10 +116,64 @@ export class ImportModal extends Modal {
 				this.renderSource("This file contains requests. Use Import in the Collections section instead.");
 				return;
 			}
-			this.renderPreview(result);
+			if (isAccountExport(result)) this.renderChoice(result);
+			else this.renderPreview(result);
 		} catch (e) {
 			this.renderSource(e instanceof Error ? e.message : String(e));
 		}
+	}
+
+	/** A whole Postman account: which of its collections and environments to import, all ticked to begin with. */
+	private renderChoice(result: ImportResult): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("p", { text: `Detected: ${result.format}. Choose what to import.` });
+		const collections = new Set(result.collections.keys());
+		const environments = new Set(result.environments.keys());
+		const boxes: HTMLInputElement[] = [];
+		const group = (heading: string, items: { name: string; detail: string }[], chosen: Set<number>) => {
+			if (items.length === 0) return;
+			contentEl.createDiv({ cls: "carbonwire-import-group", text: heading });
+			const list = contentEl.createDiv({ cls: "carbonwire-import-choices" });
+			items.forEach((item, i) => {
+				const label = list.createEl("label", { cls: "carbonwire-import-choice" });
+				const box = label.createEl("input", { type: "checkbox" });
+				box.checked = true;
+				box.addEventListener("change", () => (box.checked ? chosen.add(i) : chosen.delete(i)));
+				boxes.push(box);
+				label.createSpan({ text: item.name });
+				label.createSpan({ cls: "carbonwire-muted", text: item.detail });
+			});
+		};
+		group(
+			"Collections",
+			result.collections.map((c) => {
+				const { requests, folders } = countItems(c.items);
+				return { name: c.name, detail: [plural(requests, "request"), ...(folders ? [plural(folders, "folder")] : []), ...(c.environments.length ? [plural(c.environments.length, "environment")] : [])].join(", ") };
+			}),
+			collections,
+		);
+		group("Environments", result.environments.map((e) => ({ name: e.name, detail: plural(e.variables.length, "variable") })), environments);
+
+		const setAll = (on: boolean) => {
+			for (const box of boxes) if (box.checked !== on) {
+				box.checked = on;
+				box.dispatchEvent(new Event("change"));
+			}
+		};
+		new Setting(contentEl)
+			.addButton((b) => b.setButtonText("All").onClick(() => setAll(true)))
+			.addButton((b) => b.setButtonText("None").onClick(() => setAll(false)))
+			.addButton((b) => b.setButtonText("Back").onClick(() => this.renderSource()))
+			.addButton((b) =>
+				b.setButtonText("Continue").setCta().onClick(() => {
+					if (collections.size + environments.size === 0) {
+						new Notice("Choose at least one collection or environment.");
+						return;
+					}
+					this.renderPreview(selectFromExport(result, collections, environments));
+				}),
+			);
 	}
 
 	private renderPreview(result: ImportResult): void {

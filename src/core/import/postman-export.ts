@@ -9,6 +9,28 @@ export interface ExportFile {
 	text: string;
 }
 
+export const EXPORT_FORMAT = "Postman data export";
+export const DUMP_FORMAT = "Postman data dump";
+
+/** Whether the import is a whole Postman account, where only some of it may be wanted. */
+export function isAccountExport(result: ImportResult): boolean {
+	return (result.format === EXPORT_FORMAT || result.format === DUMP_FORMAT) && result.collections.length + result.environments.length > 1;
+}
+
+/** Keeps only the chosen collections and environments, by index, and the notes about what's kept. */
+export function selectFromExport(result: ImportResult, collections: ReadonlySet<number>, environments: ReadonlySet<number>): ImportResult {
+	const kept = result.collections.filter((_, i) => collections.has(i));
+	const keptNames = new Set(kept.map((c) => c.name));
+	// Notes about a collection start with its name; see merge().
+	const dropped = result.collections.filter((c, i) => !collections.has(i) && !keptNames.has(c.name)).map((c) => `${c.name}: `);
+	return {
+		...result,
+		collections: kept,
+		environments: result.environments.filter((_, i) => environments.has(i)),
+		warnings: result.warnings.filter((w) => !dropped.some((prefix) => w.startsWith(prefix))),
+	};
+}
+
 /** An older dump: every collection, environment and the globals in one JSON file. */
 export function isPostmanDump(data: unknown): data is Json {
 	return isObject(data) && Array.isArray(data.collections) && (Array.isArray(data.environments) || "version" in data);
@@ -29,7 +51,7 @@ export function importPostmanDump(data: unknown): ImportResult {
 	const parts = [...(data.collections as unknown[]), ...objects(data.environments)].flatMap((item) => fromData(item) ?? []);
 	const globals = objects(data.globals);
 	if (globals.length > 0) parts.push(importPostmanEnvironment({ name: "globals", _postman_variable_scope: "globals", values: globals }));
-	return merge(parts, "Postman data dump", []);
+	return merge(parts, DUMP_FORMAT, []);
 }
 
 /** Every collection, environment and globals file in a data export; other files are skipped. */
@@ -50,7 +72,7 @@ export function importPostmanExport(files: readonly ExportFile[]): ImportResult 
 		if (part) parts.push(part);
 	}
 	if (parts.length === 0) throw new ImportError("No Postman collections or environments were found.");
-	return merge(parts, "Postman data export", warnings);
+	return merge(parts, EXPORT_FORMAT, warnings);
 }
 
 function fromData(data: unknown): ImportResult | undefined {

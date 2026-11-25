@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { zip } from "../src/core/export/zip";
 import { importText } from "../src/core/import/detect";
 import { ImportError, type ImportedFolder, type ImportedRequest } from "../src/core/import/model";
-import { importPostmanExport } from "../src/core/import/postman-export";
+import { importPostmanExport, isAccountExport, selectFromExport } from "../src/core/import/postman-export";
 import { unzip } from "../src/core/import/unzip";
 
 const encode = (value: unknown) => new TextEncoder().encode(typeof value === "string" ? value : JSON.stringify(value));
@@ -81,5 +81,28 @@ describe("Postman data export", () => {
 		expect(purge.headers).toEqual([{ name: "X-Admin", value: "yes" }]);
 		const login = (items[1] as ImportedRequest).request.http!;
 		expect(login.body).toMatchObject({ type: "form-urlencoded", data: [{ name: "user", value: "u" }] });
+	});
+});
+
+describe("choosing from a Postman data export", () => {
+	const file = (path: string, data: unknown) => ({ path, text: JSON.stringify(data) });
+	const noisy = { ...users, item: [{ name: "Me", request: { method: "GET", url: "https://users.test/me" } }], event: [{ listen: "test", script: { exec: ["pm.test('x', () => {})"] } }] };
+
+	it("keeps only what was chosen, and the notes about it", () => {
+		const result = importPostmanExport([file("collection/shop.json", shop), file("collection/users.json", noisy), file("environment/dev.json", dev), file("environment/globals.json", globals)]);
+		expect(isAccountExport(result)).toBe(true);
+		const usersAt = result.collections.findIndex((c) => c.name === "Users");
+		const shopAt = result.collections.findIndex((c) => c.name === "Shop");
+		const usersNotes = result.warnings.filter((w) => w.startsWith("Users: "));
+		expect(usersNotes.length).toBeGreaterThan(0);
+		const picked = selectFromExport(result, new Set([shopAt]), new Set([0]));
+		expect(picked.collections.map((c) => c.name)).toEqual(["Shop"]);
+		expect(picked.environments.map((e) => e.name)).toEqual([result.environments[0]!.name]);
+		expect(picked.warnings.some((w) => w.startsWith("Users: "))).toBe(false);
+		expect(selectFromExport(result, new Set([usersAt]), new Set()).warnings).toEqual(usersNotes);
+	});
+
+	it("doesn't ask about a single collection", () => {
+		expect(isAccountExport(importPostmanExport([file("collection/shop.json", shop)]))).toBe(false);
 	});
 });

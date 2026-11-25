@@ -517,6 +517,23 @@ select.carbonwire-method option {
 .carbonwire-import-paste {
 	border-bottom: none;
 }
+.carbonwire-import-group {
+	margin-top: var(--size-4-3);
+	font-weight: var(--font-semibold);
+}
+.carbonwire-import-choices {
+	max-height: 40vh;
+	overflow-y: auto;
+}
+.carbonwire-import-choice {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2);
+	padding-block: var(--size-2-1);
+}
+.carbonwire-import-choice .carbonwire-muted {
+	font-size: var(--font-ui-smaller);
+}
 .modal .carbonwire-code {
 	min-height: 6rem;
 }
