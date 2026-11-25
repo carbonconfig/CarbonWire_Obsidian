@@ -26,7 +26,7 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 
 **Requests**
 - Any method, query and path parameters, headers, and JSON, XML, text, form, multipart or file bodies
-- `{{variables}}` everywhere, shown in blue when defined and red when not, plus Postman's dynamic values: `{{$guid}}`, `{{$timestamp}}`, `{{$randomEmail}}` and about 120 more
+- `{{variables}}` everywhere, shown in blue when defined and red when not, plus Postman's dynamic values: `{{$guid}}`, `{{$timestamp}}`, `{{$randomEmail}}` and about 120 more. Hover one to see its value and where it's set; `Ctrl/Cmd + Click` opens it there to edit
 - Auth: Basic, Bearer token, API key, Digest, OAuth 2.0 (authorization code with PKCE, implicit, client credentials and password), OAuth 1.0, AWS Signature v4, NTLM, Hawk, Akamai EdgeGrid, JWT Bearer, ASAP and WSSE. Authorization code and implicit sign in through your browser.
 - Settings for each request, folder or collection: timeout, redirects (how many, keeping the method or the Authorization header), URL encoding, HTTP/1.1 or HTTP/2, certificate checks, TLS versions and cipher suites, cookies, and which default headers to send
 - Paste a curl command into the URL bar and the whole request fills in. Copy any request back out as curl.
@@ -86,7 +86,7 @@ Median times on an Intel Core i5-1135G7 laptop with Node 24. Run `npm run bench`
 
 | Source | What comes across |
 |---|---|
-| Postman | Collections (v1, v2.0 and v2.1), environments, globals, and a whole data export (the .zip, or its folder) |
+| Postman | Collections (v1, v2.0 and v2.1), environments, globals, and a whole data export (the .zip, or its folder), choosing which of its collections and environments to bring in |
 | Insomnia | v4 JSON and v5 YAML exports, with environments |
 | Bruno | `.bru` collections and OpenCollection YAML folders |
 | HTTPie | Desktop and web exports |
@@ -108,6 +108,7 @@ Auth that OpenCollection files have no place for (Hawk, Akamai EdgeGrid, JWT Bea
 | Find in the response or body | `Ctrl/Cmd + F` |
 | Comment out JSON body lines | `Ctrl/Cmd + /` |
 | Cancel a request in flight | `Escape` in the response pane |
+| Edit a `{{variable}}` where it's set | `Ctrl/Cmd + Click` on it |
 
 Commands in the palette: **Open collections**, **New request**, **Import collection, environment or cURL**, **Send request**, **Edit globals**, **Open console**, **Manage cookies** and **Clear OAuth 2.0 tokens**. Assign your own hotkeys to any of them.
 
@@ -115,8 +116,9 @@ Commands in the palette: **Open collections**, **New request**, **Import collect
 
 | Setting | Default | What it does |
 |---|---|---|
-| Collections folder | `API Collections` | Where new collections are created. Existing collections are found anywhere in the vault. |
+| Collections folder | `API Collections` | Where new collections are created. Existing collections are found anywhere in the vault, except in excluded folders. |
 | Environments folder | `API Collections/Environments` | Where environments are kept. They're shared by every collection. Follows the folder when you move or rename it in Obsidian. |
+| Excluded folders | | Folders never searched for collections, one per line: a folder such as `Archive/Old APIs`, or a pattern such as `**/fixtures`. |
 | Response size limit | 20 MB | Larger bodies are cut short in memory; the full size is still shown. |
 | History size | 100 | How many recent requests to keep. Set to 0 to turn history off. |
 | Wrap long lines in responses | On | Wraps long lines instead of scrolling sideways. Also on the response toolbar. |
