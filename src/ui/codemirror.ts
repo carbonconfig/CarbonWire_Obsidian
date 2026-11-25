@@ -17,6 +17,7 @@ import { Compartment, EditorState, StateEffect, StateField, type Extension } fro
 import { Decoration, drawSelection, EditorView, keymap, lineNumbers, MatchDecorator, ViewPlugin, type DecorationSet, type Panel, type ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { setIcon } from "obsidian";
+import type { JsonProblem } from "../core/json-check";
 import { isDynamicVariable } from "../core/variables";
 import { hideVariable, isEditClick, isLinkModifier, showVariable } from "./variable-hover";
 import type { VariablesContext } from "./variables-context";
@@ -252,6 +253,30 @@ function variableHover(context: () => VariablesContext | undefined): Extension {
 	];
 }
 
+const setProblem = StateEffect.define<JsonProblem | undefined>();
+
+/** A mistake in the JSON, underlined, with its message on hover. */
+const problemField = StateField.define<DecorationSet>({
+	create: () => Decoration.none,
+	update(deco, tr) {
+		deco = deco.map(tr.changes);
+		for (const effect of tr.effects) {
+			if (!effect.is(setProblem)) continue;
+			const problem = effect.value;
+			const length = tr.state.doc.length;
+			if (!problem || length === 0) {
+				deco = Decoration.none;
+				continue;
+			}
+			const from = Math.min(problem.from, length - 1);
+			const to = Math.min(Math.max(problem.to, from + 1), length);
+			deco = Decoration.set([Decoration.mark({ class: "carbonwire-json-error", attributes: { title: problem.message } }).range(from, to)]);
+		}
+		return deco;
+	},
+	provide: (field) => EditorView.decorations.from(field),
+});
+
 const commentMatcher = new MatchDecorator({ regexp: /^\s*\/\/.*$/g, decoration: Decoration.mark({ class: "carbonwire-comment" }) });
 
 /* JSON has no comments, so // is added for Mod-/ to toggle; they're removed before sending. Commented lines are greyed. */
@@ -293,6 +318,10 @@ export interface CodeEditorHandle {
 	setLanguage(language: CodeLanguage): void;
 	setVariables(names: ReadonlySet<string> | undefined): void;
 	setWrap(wrap: boolean): void;
+	/** Underlines a mistake in the text, or clears it. */
+	setProblem(problem: JsonProblem | undefined): void;
+	/** Puts the caret at an offset and scrolls it into view. */
+	reveal(offset: number): void;
 	openSearch(): void;
 	destroy(): void;
 }
@@ -318,7 +347,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 	if (options.readOnly) {
 		extensions.push(EditorState.readOnly.of(true));
 	} else {
-		extensions.push(history(), indentOnInput(), variablesField, variableHighlighter);
+		extensions.push(history(), indentOnInput(), variablesField, variableHighlighter, problemField);
 		if (options.variables) extensions.push(variableHover(options.variables));
 		extensions.push(EditorView.updateListener.of((update) => {
 			if (update.docChanged) options.onChange?.(update.state.doc.toString());
@@ -341,6 +370,14 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 		},
 		setVariables(names) {
 			if (!options.readOnly) view.dispatch({ effects: setVariables.of(names) });
+		},
+		setProblem(problem) {
+			if (!options.readOnly) view.dispatch({ effects: setProblem.of(problem) });
+		},
+		reveal(offset) {
+			const anchor = Math.min(offset, view.state.doc.length);
+			view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+			view.focus();
 		},
 		setWrap(wrap) {
 			view.dispatch({ effects: wrapSlot.reconfigure(wrap ? EditorView.lineWrapping : []) });

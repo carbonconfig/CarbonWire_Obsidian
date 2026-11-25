@@ -514,6 +514,38 @@ select.carbonwire-method option {
 	padding: var(--size-4-1) var(--size-4-2);
 }
 
+/* A mistake in a JSON body: underlined where it is, and described below the editor. */
+.carbonwire-json-error {
+	text-decoration: underline wavy var(--text-error);
+	text-decoration-skip-ink: none;
+	text-underline-offset: 3px;
+}
+button.carbonwire-json-problem {
+	flex: 0 0 auto;
+	display: block;
+	width: 100%;
+	height: auto;
+	padding: var(--size-4-1) var(--size-4-2);
+	border: none;
+	border-left: 2px solid var(--text-error);
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	text-align: start;
+	white-space: normal;
+	cursor: pointer;
+}
+button.carbonwire-json-problem:hover {
+	background: var(--background-modifier-hover);
+}
+.carbonwire-json-problem-at {
+	margin-inline-end: var(--size-4-2);
+	color: var(--text-error);
+	font-variant-numeric: tabular-nums;
+}
+
 .carbonwire-import-paste {
 	border-bottom: none;
 }

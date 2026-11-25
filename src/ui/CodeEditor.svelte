@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import type { JsonProblem } from "../core/json-check";
 	import { createCodeEditor, type CodeEditorHandle, type CodeLanguage } from "./codemirror";
 	import { useVariables } from "./variables-context";
 
@@ -9,6 +10,7 @@
 		readOnly = false,
 		variables,
 		wrap = true,
+		problem,
 		onchange,
 	}: {
 		value: string;
@@ -17,6 +19,8 @@
 		/** Defined variable names; {{references}} are highlighted against them. */
 		variables?: ReadonlySet<string>;
 		wrap?: boolean;
+		/** A mistake to underline. */
+		problem?: JsonProblem;
 		onchange?: (value: string) => void;
 	} = $props();
 
@@ -40,6 +44,7 @@
 			},
 		});
 		editor.setVariables(variables);
+		editor.setProblem(problem);
 		return () => editor?.destroy();
 	});
 
@@ -62,8 +67,16 @@
 		editor?.setWrap(wrap);
 	});
 
+	$effect(() => {
+		editor?.setProblem(problem);
+	});
+
 	export function openSearch() {
 		editor?.openSearch();
+	}
+
+	export function reveal(offset: number) {
+		editor?.reveal(offset);
 	}
 </script>
 

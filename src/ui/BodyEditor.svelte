@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { FormUrlEncodedEntry } from "@opencollection/types/requests/http";
+	import { onDestroy } from "svelte";
+	import { checkJson, type JsonProblem } from "../core/json-check";
 	import type { HttpRequestBody, HttpRequestDetails, MultipartFormEntry } from "../core/model";
 	import { icon } from "./actions";
 	import CodeEditor from "./CodeEditor.svelte";
@@ -13,6 +15,38 @@
 	const kind = $derived(current?.type ?? "none");
 	let editor = $state<ReturnType<typeof CodeEditor>>();
 	const variables = useVariables();
+
+	/* Checked a moment after typing stops; very large bodies aren't checked. */
+	const CHECK_DELAY_MS = 300;
+	const CHECK_LIMIT = 5_000_000;
+	const json = $derived(current?.type === "json" ? current.data : undefined);
+	let problem = $state.raw<JsonProblem | undefined>();
+	let checked: string | undefined;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		const text = json;
+		clearTimeout(timer);
+		if (text === undefined || text.length > CHECK_LIMIT) {
+			checked = undefined;
+			problem = undefined;
+			return;
+		}
+		// The first check, when the tab opens or the body type changes, doesn't wait.
+		const run = () => {
+			checked = text;
+			problem = checkJson(text);
+		};
+		if (checked === undefined) run();
+		else if (text !== checked) timer = setTimeout(run, CHECK_DELAY_MS);
+	});
+	onDestroy(() => clearTimeout(timer));
+
+	/** "Line 3, column 12", counted the way the editor's gutter counts. */
+	function position(text: string, offset: number): string {
+		const before = text.slice(0, offset);
+		const line = before.split("\n").length;
+		return `Line ${line}, column ${offset - before.lastIndexOf("\n")}`;
+	}
 
 	/** Returns false when the body has no text editor to search. */
 	export function openSearch(): boolean {
@@ -72,8 +106,15 @@
 	{#if current?.type === "json" || current?.type === "text" || current?.type === "xml" || current?.type === "sparql"}
 		{@const raw = current}
 		<div class="carbonwire-editor-host">
-			<CodeEditor bind:this={editor} value={raw.data} language={raw.type === "json" ? "json" : "text"} variables={variables?.names} onchange={(data) => onchange({ type: raw.type, data })} />
+			<CodeEditor bind:this={editor} value={raw.data} language={raw.type === "json" ? "json" : "text"} variables={variables?.names} problem={raw.type === "json" ? problem : undefined} onchange={(data) => onchange({ type: raw.type, data })} />
 		</div>
+		{#if raw.type === "json" && problem}
+			{@const at = problem.from}
+			<button class="carbonwire-json-problem" title="Go to the mistake" onclick={() => editor?.reveal(at)}>
+				<span class="carbonwire-json-problem-at">{position(raw.data, at)}</span>
+				{problem.message}
+			</button>
+		{/if}
 	{:else if current?.type === "form-urlencoded"}
 		<KeyValueTable
 			rows={current.data}
