@@ -33,7 +33,7 @@ CarbonWire is free and open source, under the MIT license. Also [available for V
 - The request as code: cURL, raw HTTP, JavaScript `fetch`, Python `requests` or Go
 - Header presets: save a set of headers once and add it to any request
 - Comment out lines of a JSON body with `Ctrl+/` (`Cmd+/`). Commented lines aren't sent.
-- Mistakes in a JSON body, such as a missing comma or an unclosed bracket, are underlined where they are and described below the editor. Comments and unquoted `{{variables}}` count as fine.
+- Mistakes in a JSON body, such as a missing comma or an unclosed bracket, are underlined where they are and described below the editor. Comments and unquoted `{{variables}}` count as fine. **Format JSON** lays the body out and keeps them as they are.
 - A request opens on the first of Body, Params, Auth and Headers that has something in it, and each tab comes back as you left it: its tabs, response view and JSONPath filter
 - Start a request in a new tab without saving it, then save it to a collection when you want to keep it
 

@@ -2,6 +2,7 @@
 	import type { FormUrlEncodedEntry } from "@opencollection/types/requests/http";
 	import { onDestroy } from "svelte";
 	import { checkJson, type JsonProblem } from "../core/json-check";
+	import { formatJsonBody } from "../core/json-pretty";
 	import type { HttpRequestBody, HttpRequestDetails, MultipartFormEntry } from "../core/model";
 	import { icon } from "./actions";
 	import CodeEditor from "./CodeEditor.svelte";
@@ -73,13 +74,20 @@
 		}
 	}
 
+	/** Lays out the JSON, comments and {{variables}} kept; with a mistake in it, goes to the mistake instead. */
 	function format() {
-		if (current?.type !== "json") return;
-		try {
-			onchange({ type: "json", data: JSON.stringify(JSON.parse(current.data), null, 2) });
-		} catch {
-			// Leave invalid JSON (often containing {{variables}}) untouched.
+		if (current?.type !== "json" || !current.data.trim()) return;
+		const text = current.data;
+		const found = checkJson(text);
+		if (found) {
+			clearTimeout(timer);
+			checked = text;
+			problem = found;
+			editor?.reveal(found.from);
+			return;
 		}
+		const formatted = formatJsonBody(text);
+		if (formatted !== text) onchange({ type: "json", data: formatted });
 	}
 </script>
 
